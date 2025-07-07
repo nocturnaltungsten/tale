@@ -303,3 +303,35 @@ class TestBaseMCPServer:
 
         # This should complete without error
         asyncio.run(test())
+
+    @pytest.mark.asyncio
+    async def test_tool_registration_and_call(self):
+        """Test tool registration and execution via MCP protocol (task 1.3.a2)."""
+        server = BaseMCPServer()
+
+        # Register echo tool
+        def echo_tool(message: str) -> str:
+            """Echo back the input message."""
+            return f"Echo: {message}"
+
+        server.register_tool("echo", echo_tool)
+
+        # Test tool discovery - verify tool is registered
+        assert "echo" in server.tools
+        assert server.tools["echo"] == echo_tool
+
+        # Test tool execution through call_tool functionality
+        # This simulates the MCP call_tool request
+        result = await server._call_tool_safely(
+            server.tools["echo"], {"message": "test"}
+        )
+        assert result == "Echo: test"
+
+        # Test with different input
+        result = await server._call_tool_safely(
+            server.tools["echo"], {"message": "hello world"}
+        )
+        assert result == "Echo: hello world"
+
+        # Test error handling for unknown tool
+        assert "unknown_tool" not in server.tools
