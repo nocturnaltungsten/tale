@@ -10,7 +10,7 @@
 - Maintains conversation flow during long tasks
 - Progress updates and clarification requests
 
-### 2. Gateway/Planner Server (The Brain)  
+### 2. Gateway/Planner Server (The Brain)
 - Task decomposition using Chain-of-Thought
 - Dynamic complexity assessment
 - Token budget prediction
@@ -30,7 +30,7 @@
 
 ## Storage Layer
 - **SQLite**: All structured data (one database to rule them all)
-- **Git**: Checkpointing and version control (proven time machine)  
+- **Git**: Checkpointing and version control (proven time machine)
 - **Files**: Output artifacts and large data
 
 ## Communication

@@ -45,7 +45,7 @@ python -m skynet_lite.orchestration.server_manager
 # Run CLI interface
 python -m skynet_lite.cli.repl
 
-# Run TUI monitoring interface  
+# Run TUI monitoring interface
 python -m skynet_lite.tui.app
 
 # Run individual servers for development
@@ -106,7 +106,7 @@ ollama list
 
 # Pull required models
 ollama pull phi3:mini
-ollama pull llama3.2:3b  
+ollama pull llama3.2:3b
 ollama pull qwen2.5:7b
 ollama pull qwen2.5:14b
 

@@ -14,8 +14,8 @@
 # Variables and functions: snake_case
 def process_task_queue():
     token_count = 0
-    
-# Classes: PascalCase  
+
+# Classes: PascalCase
 class TaskExecutor:
     pass
 
@@ -34,7 +34,7 @@ from typing import Dict, List, Optional, Union, Any
 from pathlib import Path
 
 def execute_task(
-    task_id: str, 
+    task_id: str,
     complexity: str,
     budget: Optional[int] = None
 ) -> Dict[str, Any]:
@@ -50,18 +50,18 @@ def process_result(result: str | None) -> bool:
 ```python
 def classify_complexity(task: str) -> tuple[str, float]:
     """Classify task complexity using multiple indicators.
-    
+
     Args:
         task: The task description to classify
-        
+
     Returns:
         A tuple of (complexity_level, confidence_score) where
         complexity_level is one of 'simple', 'medium', 'complex'
         and confidence_score is between 0.0 and 1.0
-        
+
     Raises:
         ValueError: If task is empty or None
-        
+
     Example:
         >>> complexity, confidence = classify_complexity("What is Python?")
         >>> assert complexity == "simple"
@@ -112,7 +112,7 @@ logger.critical("System shutting down due to: %s", reason)
 src/skynet_lite/
 ├── __init__.py
 ├── models/          # Model management
-├── servers/         # MCP servers  
+├── servers/         # MCP servers
 ├── storage/         # Database and persistence
 ├── memory/          # Context and semantic search
 ├── orchestration/   # Server coordination
@@ -163,7 +163,7 @@ class ModelConfig(BaseModel):
     name: str
     memory_gb: int = Field(default=4, ge=1, le=64)
     max_tokens: int = Field(default=2000, ge=100)
-    
+
     class Config:
         frozen = True  # Immutable config
 ```

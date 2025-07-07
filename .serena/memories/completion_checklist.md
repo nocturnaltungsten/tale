@@ -33,7 +33,7 @@ When completing any development task, ensure the following:
 - [ ] Branch merged to main after review
 - [ ] Tags created for major milestones
 
-## Roadmap Updates  
+## Roadmap Updates
 - [ ] Task marked as [COMPLETE] in skynet-roadmap.md
 - [ ] Implementation notes added to roadmap
 - [ ] Dependencies and blockers updated
