@@ -3,33 +3,53 @@
 import asyncio
 import logging
 
-from mcp import Server
-from mcp.server.stdio import StdioServerTransport
+from ..mcp.base_server import BaseMCPServer
+from ..storage.database import Database
+from ..storage.task_store import TaskStore
 
 logger = logging.getLogger(__name__)
 
 
-class GatewayServer:
+class GatewayServer(BaseMCPServer):
     """Central orchestrator for task management."""
 
     def __init__(self):
-        self.server = Server(
-            name="gateway",
-            version="0.1.0",
-            capabilities={"tools": {}, "resources": {}, "prompts": {}},
-        )
-        self.setup_handlers()
+        super().__init__("gateway", "0.1.0")
+        self.task_store = TaskStore(Database())
+        self.setup_tools()
 
-    def setup_handlers(self):
+    def setup_tools(self):
         """Register MCP tools and resources."""
-        # TODO: Implement task decomposition tools
-        pass
+        self.register_tool("receive_task", self.receive_task)
 
-    async def run(self):
-        """Run the gateway server."""
-        transport = StdioServerTransport()
-        await self.server.connect(transport)
-        logger.info("Gateway server started")
+    async def receive_task(self, task_text: str, user_id: str = "default") -> dict:
+        """Receive and store a task.
+
+        Args:
+            task_text: Description of the task to be executed
+            user_id: User identifier (defaults to 'default')
+
+        Returns:
+            dict: Task reception response with task_id, status, and message
+        """
+        try:
+            # Create task in database
+            task_id = self.task_store.create_task(task_text)
+
+            logger.info(f"Task received from user {user_id}: {task_id}")
+
+            return {
+                "task_id": task_id,
+                "status": "received",
+                "message": "Task received",
+            }
+        except Exception as e:
+            logger.error(f"Failed to receive task: {str(e)}")
+            return {
+                "task_id": None,
+                "status": "error",
+                "message": f"Failed to receive task: {str(e)}",
+            }
 
 
 async def main():
