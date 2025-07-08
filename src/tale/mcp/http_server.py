@@ -97,7 +97,17 @@ class HTTPMCPServer:
                 else:
                     result = func(**arguments)
 
-                response = {"content": [{"type": "text", "text": str(result)}]}
+                # Handle result serialization properly
+                if isinstance(result, dict):
+                    # For dict results, serialize as JSON
+                    import json
+
+                    result_text = json.dumps(result)
+                else:
+                    # For other results, convert to string
+                    result_text = str(result)
+
+                response = {"content": [{"type": "text", "text": result_text}]}
 
             else:
                 return web.json_response(

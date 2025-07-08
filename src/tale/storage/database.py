@@ -21,7 +21,15 @@ class Database:
             db_path = "~/.tale/tale.db"
 
         self.db_path = Path(db_path).expanduser()
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._persistent_conn = None
+
+        # Handle in-memory databases specially
+        if str(self.db_path) == ":memory:":
+            # For in-memory databases, maintain a persistent connection
+            self._persistent_conn = sqlite3.connect(":memory:")
+            self._persistent_conn.row_factory = sqlite3.Row
+        else:
+            self.db_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Initialize database with schema
         self._initialize_schema()
@@ -40,12 +48,17 @@ class Database:
         Yields:
             sqlite3.Connection: Database connection with row factory
         """
-        conn = sqlite3.connect(str(self.db_path))
-        conn.row_factory = sqlite3.Row
-        try:
-            yield conn
-        finally:
-            conn.close()
+        if self._persistent_conn is not None:
+            # For in-memory databases, use persistent connection
+            yield self._persistent_conn
+        else:
+            # For file databases, create new connection
+            conn = sqlite3.connect(str(self.db_path))
+            conn.row_factory = sqlite3.Row
+            try:
+                yield conn
+            finally:
+                conn.close()
 
     def execute_sql(self, sql: str, params: tuple = ()) -> sqlite3.Cursor:
         """Execute SQL statement and return cursor.
