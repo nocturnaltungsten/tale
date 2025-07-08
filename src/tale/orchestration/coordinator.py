@@ -4,10 +4,15 @@ import asyncio
 import json
 import logging
 import subprocess
+import sys
 import time
 from typing import Any
 
-from ..storage.task_store import TaskStore, get_task, update_task_status
+from mcp import ClientSession, StdioServerParameters
+from mcp.client.stdio import stdio_client
+
+from ..storage.database import Database
+from ..storage.task_store import TaskStore
 
 
 class Coordinator:
@@ -26,17 +31,23 @@ class Coordinator:
             db_path: Path to the database file
         """
         self.db_path = db_path
-        self.task_store = TaskStore(db_path)
+        self.database = Database(db_path)
+        self.task_store = TaskStore(self.database)
         self.logger = logging.getLogger(__name__)
 
         # Server process management
         self.server_processes: dict[str, subprocess.Popen] = {}
         self.server_configs = {
+            "gateway": {
+                "module": "tale.servers.gateway_server",
+                "port": None,  # Using stdio transport
+                "required": True,
+            },
             "execution": {
                 "module": "tale.servers.execution_server",
                 "port": None,  # Using stdio transport
                 "required": True,
-            }
+            },
         }
 
         # Task execution tracking
@@ -53,7 +64,7 @@ class Coordinator:
         self.logger.info("Starting coordinator...")
 
         # Start required servers
-        await self.start_execution_servers()
+        await self.start_mcp_servers()
 
         # Start background tasks
         asyncio.create_task(self.monitor_tasks())
@@ -79,8 +90,8 @@ class Coordinator:
         self.server_processes.clear()
         self.logger.info("Coordinator stopped")
 
-    async def start_execution_servers(self):
-        """Start execution server processes."""
+    async def start_mcp_servers(self):
+        """Start MCP server processes."""
         for server_name, config in self.server_configs.items():
             try:
                 process = subprocess.Popen(
@@ -104,7 +115,7 @@ class Coordinator:
 
     async def delegate_task(self, task_id: str) -> dict[str, Any]:
         """
-        Delegate a task to the appropriate execution server.
+        Delegate a task through the gateway server to execution server.
 
         Args:
             task_id: ID of the task to execute
@@ -114,14 +125,11 @@ class Coordinator:
         """
         try:
             # Get task details
-            task = get_task(task_id)
+            task = self.task_store.get_task(task_id)
             if not task:
                 return {"success": False, "error": f"Task {task_id} not found"}
 
             self.logger.info(f"Delegating task {task_id}: {task['task_text'][:50]}...")
-
-            # Update task status to running
-            update_task_status(task_id, "running")
 
             # Track task execution
             self.active_tasks[task_id] = {
@@ -133,18 +141,8 @@ class Coordinator:
             # Set timeout
             self.task_timeouts[task_id] = time.time() + self.default_timeout
 
-            # Execute task
+            # Execute task through gateway server
             result = await self.execute_task_with_retry(task_id, task["task_text"])
-
-            # Update task status based on result
-            if result["success"]:
-                update_task_status(task_id, "completed")
-                self.logger.info(f"Task {task_id} completed successfully")
-            else:
-                update_task_status(task_id, "failed")
-                self.logger.error(
-                    f"Task {task_id} failed: {result.get('error', 'Unknown error')}"
-                )
 
             # Clean up tracking
             self.active_tasks.pop(task_id, None)
@@ -154,7 +152,7 @@ class Coordinator:
 
         except Exception as e:
             self.logger.error(f"Error delegating task {task_id}: {e}")
-            update_task_status(task_id, "failed")
+            self.task_store.update_task_status(task_id, "failed")
             self.active_tasks.pop(task_id, None)
             self.task_timeouts.pop(task_id, None)
 
@@ -217,7 +215,7 @@ class Coordinator:
 
     async def execute_task(self, task_id: str, task_text: str) -> dict[str, Any]:
         """
-        Execute a task via the execution server.
+        Execute a task via the gateway server using proper MCP client.
 
         Args:
             task_id: ID of the task
@@ -226,63 +224,42 @@ class Coordinator:
         Returns:
             Dict containing execution result
         """
-        # Get execution server process
-        execution_process = self.server_processes.get("execution")
-        if not execution_process:
-            return {"success": False, "error": "Execution server not available"}
-
-        # Check if process is still running
-        if execution_process.poll() is not None:
-            self.logger.error(
-                "Execution server process has died, attempting restart..."
-            )
-            await self.restart_execution_server()
-            execution_process = self.server_processes.get("execution")
-
-            if not execution_process:
-                return {"success": False, "error": "Failed to restart execution server"}
-
         try:
-            # Prepare MCP request
-            request = {
-                "jsonrpc": "2.0",
-                "id": task_id,
-                "method": "tools/call",
-                "params": {"name": "execute_task", "arguments": {"task_id": task_id}},
-            }
-
-            # Send request to execution server
-            request_json = json.dumps(request) + "\n"
-            execution_process.stdin.write(request_json)
-            execution_process.stdin.flush()
-
-            # Read response with timeout
-            response_future = asyncio.create_task(
-                self.read_response_from_process(execution_process)
+            # Create MCP client connection to gateway server
+            server_params = StdioServerParameters(
+                command=sys.executable,
+                args=["-m", "tale.servers.gateway_server"],
+                env=None,
             )
 
-            try:
-                response_json = await asyncio.wait_for(
-                    response_future, timeout=self.default_timeout
-                )
-            except asyncio.TimeoutError:
-                return {
-                    "success": False,
-                    "error": f"Task execution timed out after {self.default_timeout} seconds",
-                }
+            # Connect to gateway server via proper MCP client
+            read_stream, write_stream = await stdio_client(server_params)
 
-            # Parse response
-            response = json.loads(response_json)
+            async with ClientSession(read_stream, write_stream) as session:
+                await session.initialize()
 
-            if "error" in response:
-                return {"success": False, "error": response["error"]["message"]}
+                # Call the execute_task tool through proper MCP protocol
+                response = await session.call_tool("execute_task", {"task_id": task_id})
 
-            result = response.get("result", {})
-            return {
-                "success": result.get("success", False),
-                "result": result.get("result", ""),
-                "error": result.get("error", ""),
-            }
+                # Extract result from MCP response
+                if response.content:
+                    # MCP returns content array with text content
+                    content_text = response.content[0].text if response.content else ""
+                    try:
+                        # Parse the JSON result from the text content
+                        result_data = json.loads(content_text)
+                        return {
+                            "success": result_data.get("status") == "completed",
+                            "result": result_data.get("result", ""),
+                            "error": result_data.get("message", "")
+                            if result_data.get("status") != "completed"
+                            else "",
+                        }
+                    except json.JSONDecodeError:
+                        # If content is not JSON, treat as direct result
+                        return {"success": True, "result": content_text, "error": ""}
+                else:
+                    return {"success": False, "error": "No content in MCP response"}
 
         except Exception as e:
             self.logger.error(f"Error executing task {task_id}: {e}")
@@ -304,6 +281,35 @@ class Coordinator:
             raise Exception("No response from execution server")
 
         return line.strip()
+
+    async def restart_gateway_server(self):
+        """Restart the gateway server if it has died."""
+        try:
+            # Clean up dead process
+            if "gateway" in self.server_processes:
+                old_process = self.server_processes["gateway"]
+                if old_process.poll() is None:
+                    old_process.terminate()
+                del self.server_processes["gateway"]
+
+            # Start new process
+            config = self.server_configs["gateway"]
+            process = subprocess.Popen(
+                ["python", "-m", config["module"]],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+
+            self.server_processes["gateway"] = process
+            self.logger.info(f"Restarted gateway server (PID: {process.pid})")
+
+            # Give server time to initialize
+            await asyncio.sleep(2)
+
+        except Exception as e:
+            self.logger.error(f"Failed to restart gateway server: {e}")
 
     async def restart_execution_server(self):
         """Restart the execution server if it has died."""
@@ -349,7 +355,7 @@ class Coordinator:
                 # Handle timed out tasks
                 for task_id in timed_out_tasks:
                     self.logger.warning(f"Task {task_id} timed out")
-                    update_task_status(task_id, "failed")
+                    self.task_store.update_task_status(task_id, "failed")
                     self.active_tasks.pop(task_id, None)
                     self.task_timeouts.pop(task_id, None)
 
@@ -370,7 +376,9 @@ class Coordinator:
                 self.logger.error(f"{server_name} server has died")
 
                 # Attempt restart for required servers
-                if server_name == "execution":
+                if server_name == "gateway":
+                    await self.restart_gateway_server()
+                elif server_name == "execution":
                     await self.restart_execution_server()
 
     def get_active_tasks(self) -> list[dict[str, Any]]:

@@ -13,7 +13,6 @@ from rich.table import Table
 from tale.orchestration.coordinator import Coordinator
 from tale.storage.database import Database
 from tale.storage.schema import create_tasks_table
-from tale.storage.task_store import TaskStore
 
 console = Console()
 
@@ -360,6 +359,54 @@ def server_status() -> None:
         )
 
 
+async def submit_task_via_gateway(task_text: str) -> str:
+    """Submit a task via the gateway server using proper MCP protocol."""
+    import json
+
+    global _coordinator
+    if not _coordinator:
+        raise Exception("Coordinator not started")
+
+    # Get gateway server process
+    gateway_process = _coordinator.server_processes.get("gateway")
+    if not gateway_process:
+        raise Exception("Gateway server not available")
+
+    # Generate unique task ID for the request
+    import uuid
+
+    request_id = str(uuid.uuid4())
+
+    # Prepare MCP request to gateway server
+    request = {
+        "jsonrpc": "2.0",
+        "id": request_id,
+        "method": "tools/call",
+        "params": {"name": "receive_task", "arguments": {"task_text": task_text}},
+    }
+
+    # Send request to gateway server
+    request_json = json.dumps(request) + "\n"
+    gateway_process.stdin.write(request_json)
+    gateway_process.stdin.flush()
+
+    # Read response
+    response_line = gateway_process.stdout.readline()
+    if not response_line:
+        raise Exception("No response from gateway server")
+
+    response = json.loads(response_line.strip())
+
+    if "error" in response:
+        raise Exception(response["error"]["message"])
+
+    result = response.get("result", {})
+    if result.get("status") != "received":
+        raise Exception(result.get("message", "Failed to submit task"))
+
+    return result.get("task_id")
+
+
 @main.command()
 @click.argument("task_text")
 @click.option("--wait", is_flag=True, help="Wait for task completion")
@@ -393,10 +440,8 @@ def submit(task_text: str, wait: bool) -> None:
                 # Give servers time to initialize
                 await asyncio.sleep(2)
 
-            # Create task in database
-            db = Database(str(db_path))
-            task_store = TaskStore(db)
-            task_id = task_store.create_task(task_text)
+            # Submit task via gateway server (proper MCP flow)
+            task_id = await submit_task_via_gateway(task_text)
 
             console.print(
                 Panel(
