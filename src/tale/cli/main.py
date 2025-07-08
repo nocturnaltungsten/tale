@@ -1,18 +1,24 @@
 """Main CLI entry point for tale."""
 
+import asyncio
 import sys
 from pathlib import Path
 
 import click
 from rich.console import Console
 from rich.panel import Panel
+from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
+from tale.orchestration.coordinator import Coordinator
 from tale.storage.database import Database
 from tale.storage.schema import create_tasks_table
 from tale.storage.task_store import TaskStore
 
 console = Console()
+
+# Global coordinator instance
+_coordinator = None
 
 
 def get_project_root() -> Path:
@@ -201,10 +207,258 @@ def version() -> None:
     )
 
 
+@main.group()
+def servers() -> None:
+    """Manage MCP servers."""
+    pass
+
+
+@servers.command()
+def start() -> None:
+    """Start MCP servers."""
+
+    async def _start_servers():
+        try:
+            project_root = get_project_root()
+            db_path = project_root / "tale.db"
+
+            if not db_path.exists():
+                console.print(
+                    Panel(
+                        "[red]No tale project found. Run 'tale init' first.[/red]",
+                        title="Error",
+                    )
+                )
+                return
+
+            global _coordinator
+            if _coordinator is not None:
+                console.print(
+                    Panel(
+                        "[yellow]Servers already running. Use 'tale servers stop' first.[/yellow]",
+                        title="Warning",
+                    )
+                )
+                return
+
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=console,
+            ) as progress:
+                task = progress.add_task("Starting servers...", total=None)
+
+                _coordinator = Coordinator(str(db_path))
+                await _coordinator.start()
+
+                progress.update(task, description="Servers started successfully!")
+
+            console.print(
+                Panel(
+                    "[green]✓[/green] MCP servers started successfully\n"
+                    "[dim]You can now submit tasks with 'tale submit \"your task\"'[/dim]",
+                    title="Success",
+                )
+            )
+
+        except Exception as e:
+            console.print(
+                Panel(f"[red]Error starting servers: {e}[/red]", title="Error")
+            )
+
+    asyncio.run(_start_servers())
+
+
+@servers.command()
+def stop() -> None:
+    """Stop MCP servers."""
+
+    async def _stop_servers():
+        try:
+            global _coordinator
+            if _coordinator is None:
+                console.print(
+                    Panel(
+                        "[yellow]No servers running.[/yellow]",
+                        title="Info",
+                    )
+                )
+                return
+
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=console,
+            ) as progress:
+                task = progress.add_task("Stopping servers...", total=None)
+
+                await _coordinator.stop()
+                _coordinator = None
+
+                progress.update(task, description="Servers stopped successfully!")
+
+            console.print(
+                Panel(
+                    "[green]✓[/green] MCP servers stopped successfully",
+                    title="Success",
+                )
+            )
+
+        except Exception as e:
+            console.print(
+                Panel(f"[red]Error stopping servers: {e}[/red]", title="Error")
+            )
+
+    asyncio.run(_stop_servers())
+
+
+@servers.command()
+def server_status() -> None:
+    """Show server status."""
+    global _coordinator
+    if _coordinator is None:
+        console.print(
+            Panel(
+                "[dim]No servers running. Use 'tale servers start' to start them.[/dim]",
+                title="Server Status",
+            )
+        )
+        return
+
+    try:
+        server_status = _coordinator.get_server_status()
+        active_tasks = _coordinator.get_active_tasks()
+
+        table = Table(title="MCP Server Status")
+        table.add_column("Server", style="cyan")
+        table.add_column("Status", style="green")
+        table.add_column("PID", style="dim")
+
+        for server_name, status in server_status.items():
+            status_text = "✓ Running" if status["running"] else "✗ Stopped"
+            pid_text = str(status["pid"]) if status["pid"] else "N/A"
+            table.add_row(server_name, status_text, pid_text)
+
+        console.print(table)
+
+        if active_tasks:
+            console.print(f"\n[cyan]Active Tasks:[/cyan] {len(active_tasks)}")
+            for task in active_tasks[:5]:  # Show first 5 tasks
+                duration = f"{task['duration']:.1f}s"
+                console.print(
+                    f"  • [dim]{task['task_id'][:8]}[/dim] {task['task_text']} ([yellow]{duration}[/yellow])"
+                )
+
+            if len(active_tasks) > 5:
+                console.print(f"  ... and {len(active_tasks) - 5} more")
+        else:
+            console.print("\n[dim]No active tasks[/dim]")
+
+    except Exception as e:
+        console.print(
+            Panel(f"[red]Error getting server status: {e}[/red]", title="Error")
+        )
+
+
 @main.command()
 @click.argument("task_text")
-def submit(task_text: str) -> None:
-    """Submit a task for execution (basic implementation)."""
+@click.option("--wait", is_flag=True, help="Wait for task completion")
+def submit(task_text: str, wait: bool) -> None:
+    """Submit a task for execution via MCP servers."""
+
+    async def _submit_task():
+        try:
+            project_root = get_project_root()
+            db_path = project_root / "tale.db"
+
+            if not db_path.exists():
+                console.print(
+                    Panel(
+                        "[red]No tale project found. Run 'tale init' first.[/red]",
+                        title="Error",
+                    )
+                )
+                return
+
+            global _coordinator
+            if _coordinator is None:
+                console.print(
+                    Panel(
+                        "[yellow]Servers not running. Starting them automatically...[/yellow]",
+                        title="Info",
+                    )
+                )
+                _coordinator = Coordinator(str(db_path))
+                await _coordinator.start()
+                # Give servers time to initialize
+                await asyncio.sleep(2)
+
+            # Create task in database
+            db = Database(str(db_path))
+            task_store = TaskStore(db)
+            task_id = task_store.create_task(task_text)
+
+            console.print(
+                Panel(
+                    f"[green]✓[/green] Task submitted with ID: [cyan]{task_id[:8]}[/cyan]\n"
+                    f"[dim]Task: {task_text}[/dim]",
+                    title="Task Submitted",
+                )
+            )
+
+            # If wait flag is set, monitor execution
+            if wait:
+                with Progress(
+                    SpinnerColumn(),
+                    TextColumn("[progress.description]{task.description}"),
+                    console=console,
+                ) as progress:
+                    progress.add_task("Executing task...", total=None)
+
+                    # Delegate to coordinator
+                    result = await _coordinator.delegate_task(task_id)
+
+                    progress.stop()
+
+                    if result["success"]:
+                        console.print(
+                            Panel(
+                                f"[green]✓[/green] Task completed successfully!\n\n"
+                                f"[bold]Result:[/bold]\n{result.get('result', 'Task completed')}",
+                                title="Task Complete",
+                            )
+                        )
+                    else:
+                        console.print(
+                            Panel(
+                                f"[red]✗[/red] Task failed\n\n"
+                                f"[bold]Error:[/bold]\n{result.get('error', 'Unknown error')}",
+                                title="Task Failed",
+                            )
+                        )
+            else:
+                # Start task execution in background
+                asyncio.create_task(_coordinator.delegate_task(task_id))
+                console.print(
+                    Panel(
+                        f"[green]Task execution started in background[/green]\n"
+                        f"Use 'tale task-status {task_id[:8]}' to check progress",
+                        title="Background Execution",
+                    )
+                )
+
+        except Exception as e:
+            console.print(
+                Panel(f"[red]Error submitting task: {e}[/red]", title="Error")
+            )
+
+    asyncio.run(_submit_task())
+
+
+@main.command("task-status")
+@click.argument("task_id")
+def task_status(task_id: str) -> None:
+    """Get status of a specific task."""
     try:
         project_root = get_project_root()
         db_path = project_root / "tale.db"
@@ -218,23 +472,49 @@ def submit(task_text: str) -> None:
             )
             return
 
-        # For now, just store in database
+        # Find task by partial ID
         db = Database(str(db_path))
-        task_store = TaskStore(db)
-        task_id = task_store.create_task(task_text)
+        with db.get_connection() as conn:
+            cursor = conn.execute(
+                "SELECT id, task_text, status, created_at, updated_at FROM tasks WHERE id LIKE ?",
+                (f"{task_id}%",),
+            )
+            task = cursor.fetchone()
+
+        if not task:
+            console.print(
+                Panel(
+                    f"[red]Task with ID starting with '{task_id}' not found.[/red]",
+                    title="Error",
+                )
+            )
+            return
+
+        task_dict = dict(task)
+
+        # Create status display
+        status_color = {
+            "pending": "yellow",
+            "running": "blue",
+            "completed": "green",
+            "failed": "red",
+        }.get(task_dict["status"], "white")
 
         console.print(
             Panel(
-                f"[green]✓[/green] Task submitted with ID: [cyan]{task_id}[/cyan]\n"
-                f"[dim]Task: {task_text}[/dim]\n\n"
-                f"[yellow]Note:[/yellow] This is a basic implementation.\n"
-                f"Full execution requires MCP servers (coming in Phase 2).",
-                title="Task Submitted",
+                f"[bold]Task ID:[/bold] {task_dict['id'][:8]}...\n"
+                f"[bold]Status:[/bold] [{status_color}]{task_dict['status'].upper()}[/{status_color}]\n"
+                f"[bold]Created:[/bold] {task_dict['created_at']}\n"
+                f"[bold]Updated:[/bold] {task_dict['updated_at'] or 'Never'}\n\n"
+                f"[bold]Task:[/bold]\n{task_dict['task_text']}",
+                title="Task Status",
             )
         )
 
     except Exception as e:
-        console.print(Panel(f"[red]Error submitting task: {e}[/red]", title="Error"))
+        console.print(
+            Panel(f"[red]Error getting task status: {e}[/red]", title="Error")
+        )
 
 
 @main.command()
