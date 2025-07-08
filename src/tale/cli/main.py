@@ -20,6 +20,24 @@ console = Console()
 _coordinator = None
 
 
+def run_async(coro):
+    """Run an async coroutine, handling cases where event loop may already exist."""
+    try:
+        # Try to get the running loop
+        asyncio.get_running_loop()
+    except RuntimeError:
+        # No loop running, use asyncio.run()
+        return asyncio.run(coro)
+    else:
+        # Loop already running (e.g., in pytest), create a task
+        import concurrent.futures
+
+        # Create a new event loop in a thread to avoid conflicts
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(asyncio.run, coro)
+            return future.result()
+
+
 def get_project_root() -> Path:
     """Get the project root directory."""
     # Look for tale.db or other project markers
@@ -265,7 +283,7 @@ def start() -> None:
                 Panel(f"[red]Error starting servers: {e}[/red]", title="Error")
             )
 
-    asyncio.run(_start_servers())
+    run_async(_start_servers())
 
 
 @servers.command()
@@ -308,7 +326,7 @@ def stop() -> None:
                 Panel(f"[red]Error stopping servers: {e}[/red]", title="Error")
             )
 
-    asyncio.run(_stop_servers())
+    run_async(_stop_servers())
 
 
 @servers.command()
@@ -467,7 +485,7 @@ def submit(task_text: str, wait: bool) -> None:
                 Panel(f"[red]Error submitting task: {e}[/red]", title="Error")
             )
 
-    asyncio.run(_submit_task())
+    run_async(_submit_task())
 
 
 @main.command("task-status")
