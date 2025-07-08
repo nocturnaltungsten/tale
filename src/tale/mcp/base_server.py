@@ -3,12 +3,12 @@
 import asyncio
 import logging
 import sys
+from abc import ABC, abstractmethod
 from collections.abc import Callable
 from typing import Any
 
-import mcp.server.stdio
 import mcp.types as types
-from mcp.server import NotificationOptions, Server
+from mcp.server import Server
 
 # Configure logging to stderr (not stdout!)
 logging.basicConfig(
@@ -20,7 +20,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-class BaseMCPServer:
+class BaseMCPServer(ABC):
     """Base MCP server with tool registration and lifecycle management."""
 
     def __init__(self, name: str = "tale-mcp-server", version: str = "1.0.0"):
@@ -180,34 +180,10 @@ class BaseMCPServer:
         self.resources[uri] = func
         logger.info(f"Registered resource: {uri}")
 
+    @abstractmethod
     async def start(self) -> None:
-        """Start the MCP server."""
-        if self._running:
-            logger.warning("Server is already running")
-            return
-
-        logger.info(f"Starting MCP server: {self.name} v{self.version}")
-
-        # Start the server with stdio transport
-        async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
-            self._running = True
-            logger.info("MCP server started and listening on stdio")
-
-            try:
-                await self.server.run(
-                    read_stream,
-                    write_stream,
-                    NotificationOptions(
-                        tools_changed=True,
-                        resources_changed=True,
-                    ),
-                )
-            except Exception as e:
-                logger.error(f"Server error: {str(e)}", exc_info=True)
-                raise
-            finally:
-                self._running = False
-                logger.info("MCP server stopped")
+        """Start the MCP server. Must be implemented by subclasses."""
+        pass
 
     async def stop(self) -> None:
         """Stop the MCP server."""
@@ -227,42 +203,8 @@ class BaseMCPServer:
         return "pong"
 
 
-# Example usage and built-in tools
-def create_example_server() -> BaseMCPServer:
-    """Create an example MCP server with basic tools."""
-    server = BaseMCPServer("tale-example-server", "1.0.0")
+# Note: BaseMCPServer is now abstract and cannot be instantiated directly.
+# Use concrete implementations like HTTPMCPServer or create your own implementation.
 
-    # Register built-in echo tool
-    def echo_tool(message: str) -> str:
-        """Echo back the input message."""
-        return f"Echo: {message}"
-
-    server.register_tool("echo", echo_tool)
-
-    # Register server info resource
-    def server_info() -> str:
-        """Get server information."""
-        return f"Tale MCP Server v{server.version} - Basic implementation with tool registration"
-
-    server.register_resource("tale://server-info", server_info)
-
-    return server
-
-
-async def main():
-    """Main entry point for running the server."""
-    server = create_example_server()
-
-    try:
-        await server.start()
-    except KeyboardInterrupt:
-        logger.info("Received interrupt signal")
-    except Exception as e:
-        logger.error(f"Server failed: {str(e)}", exc_info=True)
-        sys.exit(1)
-    finally:
-        await server.stop()
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
+# Example concrete implementation would inherit from BaseMCPServer
+# and implement the start() method with the appropriate transport.
