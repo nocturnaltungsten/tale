@@ -12,5 +12,12 @@ from .ollama_client import (
     OllamaClient,
     OllamaClientError,
 )
+from .simple_client import SimpleOllamaClient
 
-__all__ = ["OllamaClient", "ModelInfo", "OllamaClientError", "ModelNotFoundError"]
+__all__ = [
+    "OllamaClient",
+    "SimpleOllamaClient",
+    "ModelInfo",
+    "OllamaClientError",
+    "ModelNotFoundError",
+]

@@ -126,7 +126,9 @@ class OllamaClient:
                 ModelInfo(
                     name=model_data["name"],
                     size=model_data["size"],
-                    modified=model_data["modified"],
+                    modified=model_data.get(
+                        "modified_at", model_data.get("modified", "")
+                    ),
                     digest=model_data["digest"],
                     details=model_data.get("details", {}),
                 )
@@ -188,7 +190,7 @@ class OllamaClient:
             response = await self._request(
                 "POST", "/api/show", json={"name": model_name}
             )
-            return "modelinfo" in response
+            return "model_info" in response or "modelinfo" in response
         except ModelNotFoundError:
             return False
         except Exception as e:

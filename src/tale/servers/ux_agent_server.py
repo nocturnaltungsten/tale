@@ -3,8 +3,8 @@
 import asyncio
 import logging
 
-from mcp import Server
-from mcp.server.stdio import StdioServerTransport
+import mcp.server.stdio
+from mcp.server import Server
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ class UXAgentServer:
 
     async def run(self):
         """Run the UX agent server."""
-        transport = StdioServerTransport()
+        transport = mcp.server.stdio.stdio_server()
         await self.server.connect(transport)
         logger.info("UX Agent server started")
 
