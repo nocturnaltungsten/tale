@@ -48,7 +48,10 @@ logs/
 # Model files (too large for git)
 *.gguf
 *.safetensors
-models/
+*.bin
+models/*.gguf
+models/*.safetensors
+models/*.bin
 
 # Claude specific
 claude.md
