@@ -100,6 +100,7 @@ class TestGatewayServer:
 
         # Verify tools are registered
         assert "receive_task" in self.server.tools
+        assert "get_task_status" in self.server.tools
 
         # Verify task store is initialized
         assert self.server.task_store is not None
@@ -111,3 +112,77 @@ class TestGatewayServer:
 
         # Check tool function is correct
         assert self.server.tools["receive_task"] == self.server.receive_task
+
+        # Check get_task_status tool is registered
+        assert "get_task_status" in self.server.tools
+        assert self.server.tools["get_task_status"] == self.server.get_task_status
+
+    @pytest.mark.asyncio
+    async def test_get_task_status_success(self):
+        """Test successful task status retrieval."""
+        # Mock task data
+        task_id = "test-task-123"
+        task_data = {
+            "id": task_id,
+            "task_text": "Test task",
+            "status": "pending",
+            "created_at": "2023-01-01T00:00:00Z",
+            "updated_at": "2023-01-01T00:00:00Z",
+        }
+
+        # Mock task store get_task method
+        self.server.task_store.get_task = (
+            lambda tid: task_data if tid == task_id else None
+        )
+
+        # Test getting task status
+        result = await self.server.get_task_status(task_id)
+
+        # Verify response structure
+        assert isinstance(result, dict)
+        assert "task_id" in result
+        assert "status" in result
+        assert "message" in result
+        assert "task_text" in result
+        assert "created_at" in result
+        assert "updated_at" in result
+
+        # Verify response values
+        assert result["task_id"] == task_id
+        assert result["status"] == "pending"
+        assert result["message"] == "Task status retrieved"
+        assert result["task_text"] == "Test task"
+
+    @pytest.mark.asyncio
+    async def test_get_task_status_not_found(self):
+        """Test task status retrieval for non-existent task."""
+        # Mock task store to return None
+        self.server.task_store.get_task = lambda tid: None
+
+        # Test getting non-existent task status
+        task_id = "non-existent-task"
+        result = await self.server.get_task_status(task_id)
+
+        # Verify response
+        assert result["task_id"] == task_id
+        assert result["status"] == "not_found"
+        assert result["message"] == "Task not found"
+
+    @pytest.mark.asyncio
+    async def test_get_task_status_error_handling(self):
+        """Test error handling in task status retrieval."""
+
+        # Mock task store to raise exception
+        def failing_get_task(task_id):
+            raise Exception("Database error")
+
+        self.server.task_store.get_task = failing_get_task
+
+        # Test task status retrieval with error
+        task_id = "error-task"
+        result = await self.server.get_task_status(task_id)
+
+        # Verify error response
+        assert result["task_id"] == task_id
+        assert result["status"] == "error"
+        assert "Database error" in result["message"]
