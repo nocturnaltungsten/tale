@@ -175,7 +175,13 @@ class HTTPMCPServer:
             else:
                 result = func(**arguments)
 
-            return {"content": [{"type": "text", "text": str(result)}]}
+            # Handle different result types properly
+            if isinstance(result, dict):
+                # Return dict results as JSON text
+                return {"content": [{"type": "text", "text": json.dumps(result)}]}
+            else:
+                # Return other results as string
+                return {"content": [{"type": "text", "text": str(result)}]}
 
         else:
             raise ValueError(f"Unknown method: {method}")

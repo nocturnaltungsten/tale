@@ -1,6 +1,7 @@
 """HTTP-based Coordinator for orchestrating communication between gateway and execution servers."""
 
 import asyncio
+import json
 import logging
 import time
 from typing import Any
@@ -129,15 +130,29 @@ class HTTPCoordinator:
             "receive_task", {"task_text": task_text}
         )
 
-        # Parse result (it's returned as JSON string from the client)
-        import json
-
+        # Parse result - handle both dict and string responses
+        # If result is a string, try to parse as JSON
         if isinstance(result, str):
-            result = json.loads(result)
+            try:
+                result = json.loads(result)
+            except json.JSONDecodeError:
+                # If JSON parsing fails, the result might be a string representation
+                # This is a fallback for malformed responses
+                logger.error(f"Failed to parse result as JSON: {result}")
+                raise Exception(f"Invalid response format from gateway: {result}")
+
+        # Ensure result is a dict at this point
+        if not isinstance(result, dict):
+            raise Exception(f"Expected dict response, got {type(result)}: {result}")
+
+        # Check for error in response
+        if result.get("status") == "error":
+            error_msg = result.get("message", "Unknown error")
+            raise Exception(f"Gateway error: {error_msg}")
 
         task_id = result.get("task_id")
         if not task_id:
-            raise Exception("Failed to create task")
+            raise Exception("Failed to create task: no task_id in response")
 
         return task_id
 
@@ -165,6 +180,14 @@ class HTTPCoordinator:
                 "execute_task", {"task_id": task_id}
             )
 
+            # Parse result if needed
+            if isinstance(result, str):
+                try:
+                    result = json.loads(result)
+                except json.JSONDecodeError:
+                    # If not valid JSON, treat as string result
+                    pass
+
             # Clean up tracking
             self.active_tasks.pop(task_id, None)
 
@@ -191,6 +214,14 @@ class HTTPCoordinator:
         result = await self.gateway_client.call_tool(
             "get_task_status", {"task_id": task_id}
         )
+
+        # Parse result if needed
+        if isinstance(result, str):
+            try:
+                result = json.loads(result)
+            except json.JSONDecodeError:
+                # If not valid JSON, treat as string result
+                pass
 
         return result
 
