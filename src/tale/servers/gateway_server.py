@@ -3,26 +3,24 @@
 import asyncio
 import json
 import logging
-import subprocess
-import sys
 
-from mcp import ClientSession, StdioServerParameters
-from mcp.client.stdio import stdio_client
-
-from ..mcp.base_server import BaseMCPServer
+from ..mcp.http_client import HTTPMCPClient
+from ..mcp.http_server import HTTPMCPServer
 from ..storage.database import Database
 from ..storage.task_store import TaskStore
 
 logger = logging.getLogger(__name__)
 
 
-class GatewayServer(BaseMCPServer):
+class GatewayServer(HTTPMCPServer):
     """Central orchestrator for task management."""
 
-    def __init__(self):
-        super().__init__("gateway", "0.1.0")
+    def __init__(
+        self, port: int = 8080, execution_server_url: str = "http://localhost:8081"
+    ):
+        super().__init__("gateway", "0.1.0", port)
         self.task_store = TaskStore(Database())
-        self.execution_process = None
+        self.execution_server_url = execution_server_url
         self.setup_tools()
 
     def setup_tools(self):
@@ -98,7 +96,7 @@ class GatewayServer(BaseMCPServer):
             }
 
     async def execute_task(self, task_id: str) -> dict:
-        """Execute a task by delegating to the execution server using proper MCP client.
+        """Execute a task by delegating to the execution server using HTTP MCP client.
 
         Args:
             task_id: The ID of the task to execute
@@ -107,87 +105,77 @@ class GatewayServer(BaseMCPServer):
             dict: Task execution response with result and status
         """
         try:
-            # Create MCP client connection to execution server
-            server_params = StdioServerParameters(
-                command=sys.executable,
-                args=["-m", "tale.servers.execution_server"],
-                env=None,
-            )
+            # Get task to verify it exists
+            task = self.task_store.get_task(task_id)
+            if task is None:
+                return {
+                    "task_id": task_id,
+                    "status": "not_found",
+                    "message": "Task not found",
+                }
 
-            # Connect to execution server via proper MCP client
-            async with stdio_client(server_params) as (read_stream, write_stream):
-                async with ClientSession(read_stream, write_stream) as session:
-                    await session.initialize()
+            # Update status to indicate processing
+            self.task_store.update_task_status(task_id, "running")
 
-                    # Call the execute_task tool through proper MCP protocol
-                    response = await session.call_tool(
-                        "execute_task", {"task_id": task_id}
-                    )
+            # Delegate to execution server via HTTP MCP
+            async with HTTPMCPClient(self.execution_server_url) as client:
+                result = await client.call_tool("execute_task", {"task_id": task_id})
 
-                    # Extract result from MCP response
-                    if response.content:
-                        # MCP returns content array with text content
-                        content_text = (
-                            response.content[0].text if response.content else ""
-                        )
-                        try:
-                            # Parse the JSON result from the text content
-                            result_data = json.loads(content_text)
-                            logger.info(
-                                f"Task {task_id} execution delegated successfully"
-                            )
-                            return result_data
-                        except json.JSONDecodeError:
-                            # If content is not JSON, treat as direct result
-                            return {
-                                "task_id": task_id,
-                                "status": "completed",
-                                "result": content_text,
-                            }
-                    else:
+                # Handle result from HTTP MCP client
+                if isinstance(result, str):
+                    try:
+                        # Try to parse as JSON
+                        result_data = json.loads(result)
+                        logger.info(f"Task {task_id} execution delegated successfully")
+                        return result_data
+                    except json.JSONDecodeError:
+                        # If not JSON, treat as direct result
                         return {
                             "task_id": task_id,
-                            "status": "error",
-                            "message": "No content in MCP response",
+                            "status": "completed",
+                            "result": result,
                         }
+                else:
+                    # Result is already a dict
+                    logger.info(f"Task {task_id} execution delegated successfully")
+                    return result
 
         except Exception as e:
             logger.error(f"Failed to execute task {task_id}: {str(e)}")
+            self.task_store.update_task_status(task_id, "failed")
             return {
                 "task_id": task_id,
                 "status": "error",
                 "message": f"Failed to execute task: {str(e)}",
             }
 
-    async def start_execution_server(self):
-        """Start the execution server process."""
-        try:
-            self.execution_process = subprocess.Popen(
-                ["python", "-m", "tale.servers.execution_server"],
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-            )
-            logger.info(f"Started execution server (PID: {self.execution_process.pid})")
-            # Give server time to initialize
-            await asyncio.sleep(2)
-        except Exception as e:
-            logger.error(f"Failed to start execution server: {e}")
-            self.execution_process = None
-
-    async def read_execution_response(self) -> str:
-        """Read a response from the execution server."""
-        line = self.execution_process.stdout.readline()
-        if not line:
-            raise Exception("No response from execution server")
-        return line.strip()
-
 
 async def main():
     """Entry point for Gateway server."""
-    server = GatewayServer()
-    await server.start()
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Gateway MCP Server")
+    parser.add_argument("--port", type=int, default=8080, help="Port to listen on")
+    parser.add_argument(
+        "--execution-server",
+        default="http://localhost:8081",
+        help="URL of execution server",
+    )
+    args = parser.parse_args()
+
+    server = GatewayServer(port=args.port, execution_server_url=args.execution_server)
+
+    try:
+        await server.start()
+        logger.info(f"Gateway server running on port {args.port}")
+
+        # Keep server running
+        await asyncio.Event().wait()
+
+    except KeyboardInterrupt:
+        logger.info("Shutting down server...")
+    finally:
+        await server.stop()
 
 
 if __name__ == "__main__":
