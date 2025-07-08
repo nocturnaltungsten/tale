@@ -1,0 +1,13 @@
+src/tale/mcp/base_server.py:import mcp.server.stdio
+src/tale/mcp/base_server.py:        # Start the server with stdio transport
+src/tale/mcp/base_server.py:        async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
+src/tale/mcp/base_server.py:            logger.info("MCP server started and listening on stdio")
+src/tale/cli/main.py:@click.option("--http", is_flag=True, help="Use HTTP transport instead of stdio")
+src/tale/cli/main.py:        # Original stdio-based approach
+src/tale/orchestration/coordinator.py:                "port": None,  # Using stdio transport
+src/tale/orchestration/coordinator.py:                "port": None,  # Using stdio transport
+src/tale/orchestration/coordinator_http.py:    enabling proper MCP protocol communication without stdio limitations.
+src/tale/servers/gateway_server.py:from mcp.client.stdio import stdio_client
+src/tale/servers/gateway_server.py:            async with stdio_client(server_params) as (read_stream, write_stream):
+src/tale/servers/ux_agent_server.py:import mcp.server.stdio
+src/tale/servers/ux_agent_server.py:        transport = mcp.server.stdio.stdio_server()
