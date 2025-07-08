@@ -11,6 +11,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
 from tale.orchestration.coordinator import Coordinator
+from tale.orchestration.coordinator_http import HTTPCoordinator
 from tale.storage.database import Database
 from tale.storage.schema import create_tasks_table
 
@@ -230,9 +231,16 @@ def servers() -> None:
     pass
 
 
+# Add flag for HTTP mode
+_use_http_mode = False
+
+
 @servers.command()
-def start() -> None:
+@click.option("--http", is_flag=True, help="Use HTTP transport instead of stdio")
+def start(http: bool) -> None:
     """Start MCP servers."""
+    global _use_http_mode
+    _use_http_mode = http
 
     async def _start_servers():
         try:
@@ -265,10 +273,16 @@ def start() -> None:
             ) as progress:
                 task = progress.add_task("Starting servers...", total=None)
 
-                _coordinator = Coordinator(str(db_path))
-                await _coordinator.start()
-
-                progress.update(task, description="Servers started successfully!")
+                if _use_http_mode:
+                    _coordinator = HTTPCoordinator(str(db_path))
+                    await _coordinator.start()
+                    progress.update(
+                        task, description="HTTP servers started successfully!"
+                    )
+                else:
+                    _coordinator = Coordinator(str(db_path))
+                    await _coordinator.start()
+                    progress.update(task, description="Servers started successfully!")
 
             console.print(
                 Panel(
@@ -384,13 +398,19 @@ async def submit_task_via_gateway(task_text: str) -> str:
     if not _coordinator:
         raise Exception("Coordinator not started")
 
-    # Create MCP client connection to the already-running gateway server
-    # Since the server is already running, we use a simple approach
-    # The coordinator will manage the actual server-to-server communication
+    # Check if we're using HTTP coordinator
+    if isinstance(_coordinator, HTTPCoordinator):
+        # Use the HTTP coordinator's submit_task method
+        task_id = await _coordinator.submit_task(task_text)
+    else:
+        # Original stdio-based approach
+        # Create MCP client connection to the already-running gateway server
+        # Since the server is already running, we use a simple approach
+        # The coordinator will manage the actual server-to-server communication
 
-    # For now, directly create the task in the database
-    # The coordinator will handle the execution flow
-    task_id = _coordinator.task_store.create_task(task_text)
+        # For now, directly create the task in the database
+        # The coordinator will handle the execution flow
+        task_id = _coordinator.task_store.create_task(task_text)
 
     return task_id
 
@@ -449,7 +469,10 @@ def submit(task_text: str, wait: bool) -> None:
                     progress.add_task("Executing task...", total=None)
 
                     # Delegate to coordinator
-                    result = await _coordinator.delegate_task(task_id)
+                    if isinstance(_coordinator, HTTPCoordinator):
+                        result = await _coordinator.execute_task(task_id)
+                    else:
+                        result = await _coordinator.delegate_task(task_id)
 
                     progress.stop()
 
@@ -471,7 +494,10 @@ def submit(task_text: str, wait: bool) -> None:
                         )
             else:
                 # Start task execution in background
-                asyncio.create_task(_coordinator.delegate_task(task_id))
+                if isinstance(_coordinator, HTTPCoordinator):
+                    asyncio.create_task(_coordinator.execute_task(task_id))
+                else:
+                    asyncio.create_task(_coordinator.delegate_task(task_id))
                 console.print(
                     Panel(
                         f"[green]Task execution started in background[/green]\n"
