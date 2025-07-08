@@ -22,6 +22,10 @@ class ExecutionServer(BaseMCPServer):
         self.task_store = TaskStore(Database())
         self.setup_tools()
 
+        # For MVP: Enable task polling
+        self.polling_enabled = True
+        self.polling_task = None
+
     def setup_tools(self):
         """Register MCP tools and resources."""
         self.register_tool("execute_task", self.execute_task)
@@ -127,6 +131,60 @@ Please provide a clear, helpful response that completes the requested task. If t
 Response:"""
 
         return prompt
+
+    async def start_task_polling(self):
+        """Start polling for pending tasks (MVP approach)."""
+        logger.info("Starting task polling...")
+
+        while self.polling_enabled:
+            try:
+                # Check for pending tasks every 2 seconds
+                await asyncio.sleep(2)
+
+                # Get pending tasks from database
+                with self.task_store.database.get_connection() as conn:
+                    cursor = conn.execute(
+                        "SELECT id, task_text FROM tasks WHERE status = 'running' ORDER BY created_at LIMIT 1"
+                    )
+                    pending_task = cursor.fetchone()
+
+                if pending_task:
+                    task_id, task_text = pending_task
+                    logger.info(f"Found pending task: {task_id[:8]}")
+
+                    # Execute the task
+                    try:
+                        result = await self.execute_task(task_id)
+                        logger.info(f"Task {task_id[:8]} processed: {result['status']}")
+                    except Exception as e:
+                        logger.error(f"Error executing task {task_id[:8]}: {e}")
+                        self.task_store.update_task_status(task_id, "failed")
+
+            except Exception as e:
+                logger.error(f"Error in task polling: {e}")
+                await asyncio.sleep(5)  # Wait longer on error
+
+    async def start(self):
+        """Start the MCP server with task polling."""
+        # Start the polling task
+        if self.polling_enabled:
+            self.polling_task = asyncio.create_task(self.start_task_polling())
+
+        # Start the MCP server
+        await super().start()
+
+    async def stop(self):
+        """Stop the server and polling."""
+        self.polling_enabled = False
+
+        if self.polling_task:
+            self.polling_task.cancel()
+            try:
+                await self.polling_task
+            except asyncio.CancelledError:
+                pass
+
+        await super().stop()
 
 
 async def main():

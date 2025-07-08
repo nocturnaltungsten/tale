@@ -115,36 +115,41 @@ class GatewayServer(BaseMCPServer):
             )
 
             # Connect to execution server via proper MCP client
-            read_stream, write_stream = await stdio_client(server_params)
+            async with stdio_client(server_params) as (read_stream, write_stream):
+                async with ClientSession(read_stream, write_stream) as session:
+                    await session.initialize()
 
-            async with ClientSession(read_stream, write_stream) as session:
-                await session.initialize()
+                    # Call the execute_task tool through proper MCP protocol
+                    response = await session.call_tool(
+                        "execute_task", {"task_id": task_id}
+                    )
 
-                # Call the execute_task tool through proper MCP protocol
-                response = await session.call_tool("execute_task", {"task_id": task_id})
-
-                # Extract result from MCP response
-                if response.content:
-                    # MCP returns content array with text content
-                    content_text = response.content[0].text if response.content else ""
-                    try:
-                        # Parse the JSON result from the text content
-                        result_data = json.loads(content_text)
-                        logger.info(f"Task {task_id} execution delegated successfully")
-                        return result_data
-                    except json.JSONDecodeError:
-                        # If content is not JSON, treat as direct result
+                    # Extract result from MCP response
+                    if response.content:
+                        # MCP returns content array with text content
+                        content_text = (
+                            response.content[0].text if response.content else ""
+                        )
+                        try:
+                            # Parse the JSON result from the text content
+                            result_data = json.loads(content_text)
+                            logger.info(
+                                f"Task {task_id} execution delegated successfully"
+                            )
+                            return result_data
+                        except json.JSONDecodeError:
+                            # If content is not JSON, treat as direct result
+                            return {
+                                "task_id": task_id,
+                                "status": "completed",
+                                "result": content_text,
+                            }
+                    else:
                         return {
                             "task_id": task_id,
-                            "status": "completed",
-                            "result": content_text,
+                            "status": "error",
+                            "message": "No content in MCP response",
                         }
-                else:
-                    return {
-                        "task_id": task_id,
-                        "status": "error",
-                        "message": "No content in MCP response",
-                    }
 
         except Exception as e:
             logger.error(f"Failed to execute task {task_id}: {str(e)}")

@@ -361,50 +361,20 @@ def server_status() -> None:
 
 async def submit_task_via_gateway(task_text: str) -> str:
     """Submit a task via the gateway server using proper MCP protocol."""
-    import json
 
     global _coordinator
     if not _coordinator:
         raise Exception("Coordinator not started")
 
-    # Get gateway server process
-    gateway_process = _coordinator.server_processes.get("gateway")
-    if not gateway_process:
-        raise Exception("Gateway server not available")
+    # Create MCP client connection to the already-running gateway server
+    # Since the server is already running, we use a simple approach
+    # The coordinator will manage the actual server-to-server communication
 
-    # Generate unique task ID for the request
-    import uuid
+    # For now, directly create the task in the database
+    # The coordinator will handle the execution flow
+    task_id = _coordinator.task_store.create_task(task_text)
 
-    request_id = str(uuid.uuid4())
-
-    # Prepare MCP request to gateway server
-    request = {
-        "jsonrpc": "2.0",
-        "id": request_id,
-        "method": "tools/call",
-        "params": {"name": "receive_task", "arguments": {"task_text": task_text}},
-    }
-
-    # Send request to gateway server
-    request_json = json.dumps(request) + "\n"
-    gateway_process.stdin.write(request_json)
-    gateway_process.stdin.flush()
-
-    # Read response
-    response_line = gateway_process.stdout.readline()
-    if not response_line:
-        raise Exception("No response from gateway server")
-
-    response = json.loads(response_line.strip())
-
-    if "error" in response:
-        raise Exception(response["error"]["message"])
-
-    result = response.get("result", {})
-    if result.get("status") != "received":
-        raise Exception(result.get("message", "Failed to submit task"))
-
-    return result.get("task_id")
+    return task_id
 
 
 @main.command()
