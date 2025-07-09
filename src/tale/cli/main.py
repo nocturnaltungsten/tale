@@ -653,22 +653,61 @@ def task_status(task_id: str) -> None:
         # Find task by partial ID
         db = Database(str(db_path))
         with db.get_connection() as conn:
+            # First try exact match
             cursor = conn.execute(
-                "SELECT id, task_text, status, created_at, updated_at FROM tasks WHERE id LIKE ?",
-                (f"{task_id}%",),
+                "SELECT id, task_text, status, created_at, updated_at FROM tasks WHERE id = ?",
+                (task_id,),
             )
             task = cursor.fetchone()
 
-        if not task:
-            console.print(
-                Panel(
-                    f"[red]Task with ID starting with '{task_id}' not found.[/red]",
-                    title="Error",
+            if task:
+                task_dict = dict(task)
+            else:
+                # Try partial match
+                cursor = conn.execute(
+                    "SELECT id, task_text, status, created_at, updated_at FROM tasks WHERE id LIKE ?",
+                    (f"{task_id}%",),
                 )
-            )
-            return
+                matching_tasks = cursor.fetchall()
 
-        task_dict = dict(task)
+                if not matching_tasks:
+                    console.print(
+                        Panel(
+                            f"[red]Task with ID starting with '{task_id}' not found.[/red]",
+                            title="Error",
+                        )
+                    )
+                    return
+                elif len(matching_tasks) == 1:
+                    task_dict = dict(matching_tasks[0])
+                else:
+                    # Multiple matches - show disambiguation menu
+                    console.print(
+                        Panel(
+                            f"[yellow]Multiple tasks found starting with '{task_id}':[/yellow]",
+                            title="Disambiguation Required",
+                        )
+                    )
+
+                    for i, match in enumerate(matching_tasks, 1):
+                        match_dict = dict(match)
+                        status_color = {
+                            "pending": "yellow",
+                            "running": "blue",
+                            "completed": "green",
+                            "failed": "red",
+                        }.get(match_dict["status"], "white")
+
+                        console.print(
+                            f"[bold]{i}.[/bold] {match_dict['id'][:12]}... "
+                            f"[{status_color}]{match_dict['status'].upper()}[/{status_color}] "
+                            f"- {match_dict['task_text'][:60]}{'...' if len(match_dict['task_text']) > 60 else ''}"
+                        )
+
+                    console.print(
+                        "\n[cyan]Please use a more specific task ID to select the desired task.[/cyan]"
+                    )
+                    return
 
         # Create status display
         status_color = {
