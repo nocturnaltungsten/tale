@@ -6,6 +6,7 @@ single model loading and text generation, building on the OllamaClient.
 
 import asyncio
 import logging
+import subprocess
 from typing import Any
 
 from .ollama_client import OllamaClient, OllamaClientError
@@ -35,6 +36,44 @@ class SimpleOllamaClient:
         self.client = OllamaClient(base_url)
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
 
+    def _check_model_loaded(self, model_name: str) -> bool:
+        """Check if a model is currently loaded in VRAM using ollama ps.
+
+        Args:
+            model_name: Name of the model to check
+
+        Returns:
+            True if model appears in ollama ps output (VRAM resident), False otherwise
+        """
+        try:
+            # Use ollama ps to check for VRAM-resident models
+            result = subprocess.run(
+                ["ollama", "ps"], capture_output=True, text=True, timeout=10
+            )
+
+            if result.returncode != 0:
+                self.logger.error(f"ollama ps failed: {result.stderr}")
+                return False
+
+            # Parse output to check if model is in the list
+            lines = result.stdout.strip().split("\n")
+            if len(lines) < 2:  # Header + at least one model line
+                return False
+
+            # Skip header line, check each model line
+            for line in lines[1:]:
+                if line.strip() and model_name in line.split()[0]:
+                    return True
+
+            return False
+
+        except subprocess.TimeoutExpired:
+            self.logger.error("ollama ps command timed out")
+            return False
+        except Exception as e:
+            self.logger.error(f"Error checking model loaded with ollama ps: {e}")
+            return False
+
     async def __aenter__(self) -> "SimpleOllamaClient":
         """Async context manager entry."""
         await self.client.__aenter__()
@@ -55,9 +94,9 @@ class SimpleOllamaClient:
             True if model is loaded, False otherwise
         """
         try:
-            # Check if model is already loaded
-            if await self.client.check_model_loaded(self.model_name):
-                self.logger.info(f"Model {self.model_name} is already loaded")
+            # Check if model is already loaded in VRAM
+            if self._check_model_loaded(self.model_name):
+                self.logger.info(f"Model {self.model_name} is already loaded in VRAM")
                 return True
 
             # Check if model exists locally
@@ -73,7 +112,7 @@ class SimpleOllamaClient:
                     return False
 
             # Model should be loaded after pull, or was already local
-            return await self.client.check_model_loaded(self.model_name)
+            return self._check_model_loaded(self.model_name)
 
         except Exception as e:
             self.logger.error(f"Error ensuring model loaded: {e}")
