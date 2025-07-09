@@ -223,10 +223,22 @@ class ModelPool:
             self.initialization_time = time.time() - start_time
 
             if success_count == len(self.always_loaded):
-                self.logger.info(
-                    f"Model pool initialized successfully in {self.initialization_time:.2f}s"
-                )
-                return True
+                # Validate both models are actually loaded in VRAM
+                validation_result = self._validate_dual_model_residency()
+                if validation_result["valid"]:
+                    self.logger.info(
+                        f"Model pool initialized successfully in {self.initialization_time:.2f}s"
+                    )
+                    self.logger.info(
+                        f"Total VRAM usage: {validation_result['total_memory_gb']:.1f}GB "
+                        f"(UX: {validation_result['ux_memory_gb']:.1f}GB, Task: {validation_result['task_memory_gb']:.1f}GB)"
+                    )
+                    return True
+                else:
+                    self.logger.error(
+                        f"Model pool initialization failed VRAM validation: {validation_result['error']}"
+                    )
+                    return False
             else:
                 self.logger.error(
                     f"Model pool initialization failed: {success_count}/{len(self.always_loaded)} models loaded"
@@ -244,6 +256,100 @@ class ModelPool:
         except Exception as e:
             self.logger.error(f"Error loading model {model_key}: {e}")
             return False
+
+    def _validate_dual_model_residency(self) -> dict:
+        """Validate both models are simultaneously loaded in VRAM.
+
+        Returns:
+            Dict with validation result, memory usage, and any error messages
+        """
+        import subprocess
+
+        try:
+            # Get ollama ps output
+            result = subprocess.run(
+                ["ollama", "ps"], capture_output=True, text=True, timeout=10
+            )
+
+            if result.returncode != 0:
+                return {"valid": False, "error": f"ollama ps failed: {result.stderr}"}
+
+            # Parse output to find our models
+            lines = result.stdout.strip().split("\n")
+            if len(lines) < 2:  # Header + at least one model line
+                return {"valid": False, "error": "No models found in ollama ps output"}
+
+            ux_model = self.models["ux"].model_name  # qwen2.5:7b
+            task_model = self.models["task"].model_name  # qwen3:14b
+
+            ux_found = False
+            task_found = False
+            ux_memory_gb = 0.0
+            task_memory_gb = 0.0
+
+            # Skip header line, check each model line
+            for line in lines[1:]:
+                if not line.strip():
+                    continue
+
+                parts = line.split()
+                if len(parts) < 4:
+                    continue
+
+                model_name = parts[0]
+                memory_size = parts[2]  # e.g., "12" or "6.0"
+                memory_unit = parts[3]  # e.g., "GB"
+
+                # Parse memory usage
+                try:
+                    memory_gb = float(memory_size)
+                    if memory_unit.upper() != "GB":
+                        # Convert other units if needed (MB, etc.)
+                        if memory_unit.upper() == "MB":
+                            memory_gb = memory_gb / 1024
+                except (ValueError, IndexError):
+                    memory_gb = 0.0
+
+                if model_name == ux_model:
+                    ux_found = True
+                    ux_memory_gb = memory_gb
+                elif model_name == task_model:
+                    task_found = True
+                    task_memory_gb = memory_gb
+
+            # Validate both models found
+            if not ux_found:
+                return {
+                    "valid": False,
+                    "error": f"UX model {ux_model} not found in VRAM",
+                }
+            if not task_found:
+                return {
+                    "valid": False,
+                    "error": f"Task model {task_model} not found in VRAM",
+                }
+
+            total_memory_gb = ux_memory_gb + task_memory_gb
+
+            # Validate memory meets minimum requirements (18GB total)
+            if total_memory_gb < 18.0:
+                return {
+                    "valid": False,
+                    "error": f"Total VRAM usage {total_memory_gb:.1f}GB < 18GB minimum requirement",
+                }
+
+            return {
+                "valid": True,
+                "ux_memory_gb": ux_memory_gb,
+                "task_memory_gb": task_memory_gb,
+                "total_memory_gb": total_memory_gb,
+                "error": None,
+            }
+
+        except subprocess.TimeoutExpired:
+            return {"valid": False, "error": "ollama ps command timed out"}
+        except Exception as e:
+            return {"valid": False, "error": f"VRAM validation error: {e}"}
 
     async def get_model(self, task_type: str) -> ModelClient:
         """Get appropriate model for task type.

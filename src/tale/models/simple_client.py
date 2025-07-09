@@ -141,31 +141,24 @@ class SimpleOllamaClient:
         return await self.client.is_healthy()
 
     async def ensure_model_loaded(self) -> bool:
-        """Ensure the model is loaded and ready.
+        """Ensure the model is loaded and ready into VRAM.
 
         Returns:
-            True if model is loaded, False otherwise
+            True if model is loaded successfully, False otherwise
         """
         try:
-            # Check if model is already loaded in VRAM
-            if self._check_model_loaded(self.model_name):
-                self.logger.info(f"Model {self.model_name} is already loaded in VRAM")
+            # Force load model into VRAM using synchronous method
+            load_time = self._ensure_model_loaded(self.model_name)
+
+            if load_time >= 0:  # Success (0.0 if already loaded, >0 if newly loaded)
+                if load_time > 0:
+                    self.logger.info(
+                        f"Model {self.model_name} loaded into VRAM in {load_time:.2f}s"
+                    )
                 return True
-
-            # Check if model exists locally
-            models = await self.client.list_models()
-            model_exists = any(model.name == self.model_name for model in models)
-
-            if not model_exists:
-                self.logger.info(
-                    f"Model {self.model_name} not found locally, attempting to pull"
-                )
-                if not await self.client.pull_model(self.model_name):
-                    self.logger.error(f"Failed to pull model {self.model_name}")
-                    return False
-
-            # Model should be loaded after pull, or was already local
-            return self._check_model_loaded(self.model_name)
+            else:
+                self.logger.error(f"Failed to load model {self.model_name} into VRAM")
+                return False
 
         except Exception as e:
             self.logger.error(f"Error ensuring model loaded: {e}")
