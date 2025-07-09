@@ -339,12 +339,13 @@ class ModelPool:
     async def get_model(self, task_type: str) -> ModelClient:
         """Get appropriate model for task type.
 
-        Simplified selection per architecture:
-        - 'conversation' -> UX model
-        - Everything else -> Task model
+        Standardized selection per architecture:
+        - 'conversation' -> UX model (qwen2.5:7b)
+        - 'planning' -> Task model (qwen3:14b)
+        - 'task' -> Task model (deprecated, use 'planning')
 
         Args:
-            task_type: Type of task ('conversation' or any other)
+            task_type: Type of task ('conversation', 'planning', or deprecated 'task')
 
         Returns:
             ModelClient for the appropriate model
@@ -352,22 +353,50 @@ class ModelPool:
         Raises:
             OllamaClientError: If model is not available
         """
+        # Log model selection decision
+        self.logger.info(f"Model selection requested for task_type: '{task_type}'")
+
         if task_type == "conversation":
             model_key = "ux"
-        else:
+            self.logger.info("Selected UX model for conversation")
+        elif task_type == "planning":
             model_key = "task"
+            self.logger.info("Selected Task model for planning")
+        elif task_type == "task":
+            # Backward compatibility with deprecation warning
+            model_key = "task"
+            self.logger.warning(
+                "DEPRECATED: task_type 'task' is deprecated, use 'planning' instead"
+            )
+            self.logger.info("Selected Task model for deprecated 'task' key")
+        else:
+            # Default to task model for any other task type
+            model_key = "task"
+            self.logger.info(
+                f"Selected Task model for unrecognized task_type: '{task_type}'"
+            )
 
         if model_key not in self.models:
             raise OllamaClientError(f"Model {model_key} not configured")
 
         model = self.models[model_key]
 
+        # Log model details
+        self.logger.info(
+            f"Using model: {model.model_name} (key: {model_key}, "
+            f"always_loaded: {model.always_loaded}, is_loaded: {model.is_loaded})"
+        )
+
         # Ensure model is loaded
         if not model.is_loaded:
+            self.logger.info(f"Loading model {model_key} on-demand...")
             success = await model.load()
             if not success:
                 raise OllamaClientError(f"Failed to load model {model_key}")
             self.loaded_models.add(model_key)
+            self.logger.info(f"Successfully loaded model {model_key}")
+        else:
+            self.logger.info(f"Model {model_key} already loaded")
 
         return model
 
