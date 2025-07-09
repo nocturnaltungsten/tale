@@ -484,7 +484,20 @@ VALIDATION:
 - Run: tale status (shows task list)
 - Run: tale status --watch (updates live)
 COMMIT: "feat(cli): improve task status display"
-STATUS: [ ]
+STATUS: [COMPLETE] - 2025-07-09 18:36
+NOTES:
+- Key decisions: Added new 'tale tasks' command with --watch flag, kept 'tale list' as alias for backward compatibility
+- Implementation approach: Enhanced CLI with rich formatting including color-coded status, age/duration columns, and live updates
+- Challenges faced: Fixed bare except clauses flagged by ruff, required proper exception type handling
+- Performance impact: Live updates refresh every 2 seconds, efficient database queries for task display
+- Testing coverage: Manual testing with sample data shows proper color coding and formatting
+- Documentation updates: Added comprehensive help text and command descriptions
+- Future considerations: Task status display now provides clear visibility into task lifecycle and timing
+- Dependencies affected: None - enhanced existing CLI infrastructure
+- Technical details: Added format_duration() and format_age() helper functions for human-readable timestamps
+- Status colors: pending=yellow, running=blue, completed=green, failed=red for easy visual identification
+- Live watch mode allows real-time monitoring of task progress with keyboard interrupt support
+- Commit hash: 782c9b3
 ```
 
 ## Phase 2: Minimal Viable System (REFACTORED - MORE DEMANDING)
