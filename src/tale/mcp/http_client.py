@@ -6,6 +6,8 @@ from typing import Any
 
 import aiohttp
 
+from tale.exceptions import NetworkException
+
 logger = logging.getLogger(__name__)
 
 
@@ -50,9 +52,14 @@ class HTTPMCPClient:
                     f"Connected to MCP server: {data.get('server')} v{data.get('version')}"
                 )
 
+        except NetworkException:
+            await self.close()
+            raise
         except Exception as e:
             await self.close()
-            raise ConnectionError(f"Failed to connect to MCP server: {e}")
+            raise NetworkException(
+                f"Failed to connect to MCP server: {e}", {"base_url": self.base_url}
+            )
 
     async def close(self):
         """Close the client connection."""
@@ -82,9 +89,15 @@ class HTTPMCPClient:
                 result = await response.json()
                 return result.get("tools", [])
 
+        except NetworkException:
+            logger.error("Error listing tools: NetworkException")
+            raise
         except Exception as e:
             logger.error(f"Error listing tools: {e}")
-            raise
+            raise NetworkException(
+                f"Tools list request failed: {e}",
+                {"base_url": self.base_url, "method": "tools/list"},
+            )
 
     async def call_tool(self, name: str, arguments: dict[str, Any]) -> Any:
         """Call a tool on the server.
@@ -122,9 +135,15 @@ class HTTPMCPClient:
 
                 return result
 
+        except NetworkException:
+            logger.error(f"Error calling tool {name}: NetworkException")
+            raise
         except Exception as e:
             logger.error(f"Error calling tool {name}: {e}")
-            raise
+            raise NetworkException(
+                f"Tool call failed: {e}",
+                {"base_url": self.base_url, "method": "tools/call", "tool_name": name},
+            )
 
     async def call_tool_sse(self, name: str, arguments: dict[str, Any]) -> Any:
         """Call a tool using Server-Sent Events transport.
@@ -171,6 +190,17 @@ class HTTPMCPClient:
 
                 return None
 
+        except NetworkException:
+            logger.error(f"Error calling tool {name} via SSE: NetworkException")
+            raise
         except Exception as e:
             logger.error(f"Error calling tool {name} via SSE: {e}")
-            raise
+            raise NetworkException(
+                f"SSE tool call failed: {e}",
+                {
+                    "base_url": self.base_url,
+                    "method": "tools/call",
+                    "tool_name": name,
+                    "transport": "SSE",
+                },
+            )
