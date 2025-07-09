@@ -1,9 +1,11 @@
 """HTTP/SSE-based MCP Server for inter-server communication."""
 
 import asyncio
+import inspect
 import json
 import logging
 from collections.abc import Callable
+from typing import Any, Union, get_type_hints
 
 from aiohttp import web
 
@@ -29,8 +31,9 @@ class HTTPMCPServer:
         self.version = version
         self.port = port
 
-        # Tool registry
+        # Tool registry with metadata
         self.tools: dict[str, Callable] = {}
+        self.tool_metadata: dict[str, dict] = {}
 
         # Web app
         self.app = web.Application()
@@ -45,6 +48,83 @@ class HTTPMCPServer:
         self.app.router.add_post("/mcp/sse", self.handle_mcp_sse)
         self.app.router.add_get("/health", self.health_check)
 
+    def _python_type_to_json_schema(self, py_type: Any) -> dict[str, Any]:
+        """Convert Python type annotations to JSON schema."""
+        # Handle Union types (e.g., Optional[str] is Union[str, None])
+        if hasattr(py_type, "__origin__") and py_type.__origin__ is Union:
+            args = py_type.__args__
+            if len(args) == 2 and type(None) in args:
+                # This is Optional[T] - get the non-None type
+                non_none_type = args[0] if args[1] is type(None) else args[1]
+                return self._python_type_to_json_schema(non_none_type)
+            else:
+                # Multiple types - use "anyOf"
+                return {
+                    "anyOf": [
+                        self._python_type_to_json_schema(arg)
+                        for arg in args
+                        if arg is not type(None)
+                    ]
+                }
+
+        # Handle List types
+        if hasattr(py_type, "__origin__") and py_type.__origin__ is list:
+            if hasattr(py_type, "__args__") and py_type.__args__:
+                return {
+                    "type": "array",
+                    "items": self._python_type_to_json_schema(py_type.__args__[0]),
+                }
+            return {"type": "array"}
+
+        # Handle Dict types
+        if hasattr(py_type, "__origin__") and py_type.__origin__ is dict:
+            return {"type": "object"}
+
+        # Basic type mapping
+        type_mapping = {
+            str: {"type": "string"},
+            int: {"type": "integer"},
+            float: {"type": "number"},
+            bool: {"type": "boolean"},
+            list: {"type": "array"},
+            dict: {"type": "object"},
+            Any: {},  # Any type - no constraints
+        }
+
+        return type_mapping.get(py_type, {"type": "string"})  # Default to string
+
+    def _generate_input_schema(self, func: Callable) -> dict[str, Any]:
+        """Generate JSON schema for function parameters."""
+        try:
+            sig = inspect.signature(func)
+            type_hints = get_type_hints(func)
+
+            properties = {}
+            required = []
+
+            for param_name, param in sig.parameters.items():
+                # Skip self parameter
+                if param_name == "self":
+                    continue
+
+                param_type = type_hints.get(param_name, str)
+                param_schema = self._python_type_to_json_schema(param_type)
+
+                # Add description from parameter annotation if available
+                if param.annotation != inspect.Parameter.empty:
+                    param_schema["description"] = f"Parameter of type {param_type}"
+
+                properties[param_name] = param_schema
+
+                # If parameter has no default value, it's required
+                if param.default == inspect.Parameter.empty:
+                    required.append(param_name)
+
+            return {"type": "object", "properties": properties, "required": required}
+        except Exception as e:
+            logger.warning(f"Failed to generate schema for {func.__name__}: {e}")
+            return {"type": "object", "properties": {}, "required": []}
+
     def register_tool(self, name: str, func: Callable) -> None:
         """Register a tool with the server.
 
@@ -53,6 +133,20 @@ class HTTPMCPServer:
             func: Tool function (can be sync or async)
         """
         self.tools[name] = func
+
+        # Generate metadata for the tool
+        description = func.__doc__ or f"Tool: {name}"
+        if description:
+            # Clean up docstring formatting
+            description = inspect.cleandoc(description)
+
+        input_schema = self._generate_input_schema(func)
+
+        self.tool_metadata[name] = {
+            "name": name,
+            "description": description,
+            "inputSchema": input_schema,
+        }
 
     async def handle_mcp_request(self, request: web.Request) -> web.Response:
         """Handle standard MCP request."""
@@ -64,20 +158,7 @@ class HTTPMCPServer:
             params = data.get("params", {})
 
             if method == "tools/list":
-                tools = []
-                for name, func in self.tools.items():
-                    tools.append(
-                        {
-                            "name": name,
-                            "description": func.__doc__ or f"Tool: {name}",
-                            "inputSchema": {
-                                "type": "object",
-                                "properties": {},
-                                "required": [],
-                            },
-                        }
-                    )
-
+                tools = list(self.tool_metadata.values())
                 response = {"tools": tools}
 
             elif method == "tools/call":
@@ -154,20 +235,7 @@ class HTTPMCPServer:
         params = data.get("params", {})
 
         if method == "tools/list":
-            tools = []
-            for name, func in self.tools.items():
-                tools.append(
-                    {
-                        "name": name,
-                        "description": func.__doc__ or f"Tool: {name}",
-                        "inputSchema": {
-                            "type": "object",
-                            "properties": {},
-                            "required": [],
-                        },
-                    }
-                )
-
+            tools = list(self.tool_metadata.values())
             return {"tools": tools}
 
         elif method == "tools/call":

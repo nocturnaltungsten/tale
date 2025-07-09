@@ -241,7 +241,19 @@ VALIDATION:
 - Run: find . -name "*.py" -exec grep -l "from.*Coordinator" {} \; | grep -v HTTP
 - Above command should return no results
 COMMIT: "refactor(orchestration): remove stdio coordinator"
-STATUS: [ ]
+STATUS: [COMPLETE] - 2025-07-09 17:00
+NOTES:
+- Key decisions: Completely removed stdio-based coordinator.py file, updated all imports to use HTTPCoordinator only
+- Implementation approach: Systematically updated all test files and __init__.py to use HTTPCoordinator, moved coordinator.py to trash
+- Challenges faced: None significant - straightforward search and replace across test files and module exports
+- Performance impact: Eliminated stdio coordinator codebase, reduced module size by 454 lines
+- Testing coverage: Updated all test files to use HTTPCoordinator, imports tested and validated
+- Documentation updates: Updated __init__.py to export HTTPCoordinator instead of Coordinator
+- Future considerations: System now purely HTTP-based with no stdio transport legacy code
+- Dependencies affected: All test files and orchestration module now use HTTPCoordinator exclusively
+- Validation confirmed: No files import from old coordinator module, HTTPCoordinator import works correctly
+- Files moved to trash: coordinator.py (following global directive to never delete, only move to trash)
+- Commit hash: 0df4b94
 ```
 
 #### 1.5.e2a - Fix HTTPMCPServer Tool Registration
@@ -259,7 +271,20 @@ VALIDATION:
 - Start server and curl http://localhost:8080/mcp -d '{"method":"tools/list"}'
 - Response should include proper tool schemas
 COMMIT: "fix(http): improve tool registration metadata"
-STATUS: [ ]
+STATUS: [COMPLETE] - 2025-07-09 17:05
+NOTES:
+- Key decisions: Implemented comprehensive tool registration with function signature introspection and JSON schema generation
+- Implementation approach: Added _python_type_to_json_schema() method to convert Python types to JSON schema, enhanced register_tool() to capture metadata
+- Challenges faced: Handling Optional types and Union types properly, ensuring proper type annotation extraction
+- Performance impact: Pre-computes tool metadata at registration time rather than on-demand, improving tools/list response time
+- Testing coverage: Created test script validating all tool registration features, tested with actual gateway server
+- Documentation updates: Enhanced docstring processing with inspect.cleandoc() for better formatting
+- Future considerations: Tool metadata now includes proper parameter types, descriptions, and required fields for better MCP compatibility
+- Dependencies affected: Updated imports to include inspect, typing modules for signature introspection
+- Key implementation: Added tool_metadata dict to store pre-computed schemas, updated both HTTP and SSE handlers
+- Schema generation: Supports str, int, float, bool, list, dict, Optional types, and Union types with proper JSON schema output
+- Validation confirmed: curl test shows proper tool schemas with parameter types and required fields
+- Commit hash: [pending]
 ```
 
 #### 1.5.e2b - Fix HTTP Health Check Endpoints
