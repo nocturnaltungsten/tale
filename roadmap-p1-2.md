@@ -1242,8 +1242,20 @@ VALIDATION:
 - Before: Returns True for any model in ollama list (false positive)
 - After: Returns True only for models in ollama ps (VRAM resident)
 COMMIT: "fix(models): check VRAM residency not model existence"
-STATUS: [ ]
+STATUS: [COMPLETE] - 2025-07-09 18:05
 NOTES:
+- Key decisions: Added _check_model_loaded() method using subprocess to call ollama ps for VRAM residency checking
+- Implementation approach: Replaced false positive model existence checks with actual VRAM loading verification through ollama ps parsing
+- Challenges faced: None significant - straightforward subprocess integration with proper error handling and timeout
+- Performance impact: VRAM residency checks eliminate false positives, subprocess call with 10s timeout for reliability
+- Testing coverage: Manual validation confirms True for VRAM-resident models, False for unloaded models, False for nonexistent models
+- Documentation updates: Added comprehensive docstrings with args, returns, and behavior documentation
+- Future considerations: Ready for next task to add force loading capability using this improved detection
+- Dependencies affected: Enhanced SimpleOllamaClient with subprocess import, maintained method signature compatibility
+- Technical details: Parses ollama ps output, skips header line, checks model name in first column of each data line
+- All acceptance criteria met: Method returns True only for VRAM-resident models, False for locally available but unloaded models
+- Validation confirmed: qwen3:14b (loaded) returns True, qwen2.5:7b (unloaded) returns False, nonexistent models return False
+- Commit hash: 780b6c1
 ```
 
 ### 2.2.e1c2 - Add Model Force Loading Method

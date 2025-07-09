@@ -74,6 +74,59 @@ class SimpleOllamaClient:
             self.logger.error(f"Error checking model loaded with ollama ps: {e}")
             return False
 
+    def _ensure_model_loaded(self, model_name: str) -> float:
+        """Ensure model is loaded into VRAM, loading if necessary.
+
+        Args:
+            model_name: Name of the model to ensure is loaded
+
+        Returns:
+            Load time in seconds (0.0 if already loaded)
+
+        Raises:
+            Exception: If model loading fails or times out
+        """
+        import time
+
+        # Check if model already loaded
+        if self._check_model_loaded(model_name):
+            self.logger.info(f"Model {model_name} already loaded in VRAM")
+            return 0.0
+
+        self.logger.info(f"Loading model {model_name} into VRAM...")
+        start_time = time.time()
+
+        try:
+            # Use ollama run with empty prompt to force loading
+            result = subprocess.run(
+                ["ollama", "run", model_name, ""],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                input="",
+            )
+
+            load_time = time.time() - start_time
+
+            if result.returncode != 0:
+                raise Exception(f"ollama run failed: {result.stderr}")
+
+            # Verify model is now loaded
+            if not self._check_model_loaded(model_name):
+                raise Exception(f"Model {model_name} failed to load into VRAM")
+
+            self.logger.info(
+                f"Model {model_name} loaded successfully in {load_time:.2f}s"
+            )
+            return load_time
+
+        except subprocess.TimeoutExpired:
+            load_time = time.time() - start_time
+            raise Exception(f"Model loading timed out after {load_time:.2f}s")
+        except Exception as e:
+            load_time = time.time() - start_time
+            raise Exception(f"Model loading failed after {load_time:.2f}s: {e}")
+
     async def __aenter__(self) -> "SimpleOllamaClient":
         """Async context manager entry."""
         await self.client.__aenter__()
