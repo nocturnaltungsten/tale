@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 
+from ..exceptions import DatabaseException, ServerException, TaskException
 from ..mcp.http_client import HTTPMCPClient
 from ..mcp.http_server import HTTPMCPServer
 from ..storage.database import Database
@@ -50,13 +51,19 @@ class GatewayServer(HTTPMCPServer):
                 "status": "received",
                 "message": "Task received",
             }
-        except Exception as e:
-            logger.error(f"Failed to receive task: {str(e)}")
+        except DatabaseException as e:
+            logger.error(f"Database error while receiving task: {str(e)}")
             return {
                 "task_id": None,
                 "status": "error",
-                "message": f"Failed to receive task: {str(e)}",
+                "message": f"Database error: {str(e)}",
             }
+        except Exception as e:
+            logger.error(f"Failed to receive task: {str(e)}")
+            raise TaskException(
+                f"Failed to receive task: {str(e)}",
+                {"task_text": task_text, "user_id": user_id},
+            )
 
     async def get_task_status(self, task_id: str) -> dict:
         """Get the status of a task.
@@ -87,13 +94,18 @@ class GatewayServer(HTTPMCPServer):
                 "created_at": task.get("created_at", ""),
                 "updated_at": task.get("updated_at", ""),
             }
-        except Exception as e:
-            logger.error(f"Failed to get task status: {str(e)}")
+        except DatabaseException as e:
+            logger.error(f"Database error while getting task status: {str(e)}")
             return {
                 "task_id": task_id,
                 "status": "error",
-                "message": f"Failed to get task status: {str(e)}",
+                "message": f"Database error: {str(e)}",
             }
+        except Exception as e:
+            logger.error(f"Failed to get task status: {str(e)}")
+            raise TaskException(
+                f"Failed to get task status: {str(e)}", {"task_id": task_id}
+            )
 
     async def execute_task(self, task_id: str) -> dict:
         """Execute a task by delegating to the execution server using HTTP MCP client.
@@ -140,14 +152,21 @@ class GatewayServer(HTTPMCPServer):
                     logger.info(f"Task {task_id} execution delegated successfully")
                     return result
 
-        except Exception as e:
-            logger.error(f"Failed to execute task {task_id}: {str(e)}")
+        except ServerException as e:
+            logger.error(f"Server error while executing task {task_id}: {str(e)}")
             self.task_store.update_task_status(task_id, "failed")
             return {
                 "task_id": task_id,
                 "status": "error",
-                "message": f"Failed to execute task: {str(e)}",
+                "message": f"Server error: {str(e)}",
             }
+        except Exception as e:
+            logger.error(f"Failed to execute task {task_id}: {str(e)}")
+            self.task_store.update_task_status(task_id, "failed")
+            raise TaskException(
+                f"Failed to execute task: {str(e)}",
+                {"task_id": task_id, "execution_server_url": self.execution_server_url},
+            )
 
 
 async def main():

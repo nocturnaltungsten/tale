@@ -3,6 +3,7 @@
 import logging
 from typing import Any
 
+from ..exceptions import DatabaseException, ServerException, TaskException
 from ..mcp.http_client import HTTPMCPClient
 from ..mcp.http_server import HTTPMCPServer
 from ..storage.database import Database
@@ -58,13 +59,18 @@ class HTTPGatewayServer(HTTPMCPServer):
                 "message": "Task received and queued for processing",
             }
 
-        except Exception as e:
-            logger.error(f"Error creating task: {e}")
+        except DatabaseException as e:
+            logger.error(f"Database error creating task: {e}")
             return {
                 "task_id": None,
                 "status": "error",
-                "message": f"Failed to create task: {str(e)}",
+                "message": f"Database error: {str(e)}",
             }
+        except Exception as e:
+            logger.error(f"Error creating task: {e}")
+            raise TaskException(
+                f"Failed to create task: {str(e)}", {"task_text": task_text}
+            )
 
     async def get_task_status(self, task_id: str) -> dict[str, Any]:
         """Get the status of a task.
@@ -93,13 +99,18 @@ class HTTPGatewayServer(HTTPMCPServer):
                 "updated_at": task["updated_at"],
             }
 
-        except Exception as e:
-            logger.error(f"Error getting task status: {e}")
+        except DatabaseException as e:
+            logger.error(f"Database error getting task status: {e}")
             return {
                 "task_id": task_id,
                 "status": "error",
-                "message": f"Failed to get task status: {str(e)}",
+                "message": f"Database error: {str(e)}",
             }
+        except Exception as e:
+            logger.error(f"Error getting task status: {e}")
+            raise TaskException(
+                f"Failed to get task status: {str(e)}", {"task_id": task_id}
+            )
 
     async def execute_task(self, task_id: str) -> dict[str, Any]:
         """Execute a task by delegating to the execution server.
@@ -138,15 +149,23 @@ class HTTPGatewayServer(HTTPMCPServer):
                     "execution_result": result,
                 }
 
-        except Exception as e:
-            logger.error(f"Error executing task {task_id}: {e}")
+        except ServerException as e:
+            logger.error(f"Server error executing task {task_id}: {e}")
             self.task_store.update_task_status(task_id, "failed")
 
             return {
                 "task_id": task_id,
                 "status": "failed",
-                "message": f"Failed to execute task: {str(e)}",
+                "message": f"Server error: {str(e)}",
             }
+        except Exception as e:
+            logger.error(f"Error executing task {task_id}: {e}")
+            self.task_store.update_task_status(task_id, "failed")
+
+            raise TaskException(
+                f"Failed to execute task: {str(e)}",
+                {"task_id": task_id, "execution_server_url": self.execution_server_url},
+            )
 
     async def get_server_info(self) -> dict[str, Any]:
         """Get server information."""
