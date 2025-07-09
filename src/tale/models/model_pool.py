@@ -166,7 +166,7 @@ class ModelPool:
 
         # Task model for execution (always loaded, 14-24GB)
         self.models["task"] = ModelClient(
-            model_name="qwen2.5:14b",
+            model_name="qwen3:14b",
             always_loaded=True,
             base_url=self.base_url,
             memory_requirement=16384,  # ~16GB

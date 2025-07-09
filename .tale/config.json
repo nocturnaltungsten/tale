@@ -1,7 +1,7 @@
 {
   "models": {
     "small": "qwen2.5:7b",
-    "large": "qwen2.5:14b"
+    "large": "qwen3:14b"
   },
   "database_path": "tale.db",
   "checkpoint_dir": "checkpoints"
