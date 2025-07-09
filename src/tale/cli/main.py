@@ -2,10 +2,13 @@
 
 import asyncio
 import sys
+import time
+from datetime import datetime
 from pathlib import Path
 
 import click
 from rich.console import Console
+from rich.live import Live
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
@@ -18,6 +21,96 @@ console = Console()
 
 # Global coordinator instance
 _coordinator = None
+
+
+def format_duration(created_at: str, updated_at: str = None) -> str:
+    """Format duration from creation time."""
+    try:
+        # Parse the timestamp
+        start_time = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+        end_time = datetime.now()
+
+        if updated_at:
+            try:
+                end_time = datetime.fromisoformat(updated_at.replace("Z", "+00:00"))
+            except (ValueError, TypeError):
+                pass
+
+        duration = end_time - start_time
+
+        # Format duration nicely
+        total_seconds = int(duration.total_seconds())
+        if total_seconds < 60:
+            return f"{total_seconds}s"
+        elif total_seconds < 3600:
+            minutes = total_seconds // 60
+            seconds = total_seconds % 60
+            return f"{minutes}m {seconds}s"
+        else:
+            hours = total_seconds // 3600
+            minutes = (total_seconds % 3600) // 60
+            return f"{hours}h {minutes}m"
+    except (ValueError, TypeError):
+        return "unknown"
+
+
+def format_age(timestamp: str) -> str:
+    """Format age since timestamp."""
+    try:
+        time_obj = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+        now = datetime.now()
+        age = now - time_obj
+
+        total_seconds = int(age.total_seconds())
+        if total_seconds < 60:
+            return f"{total_seconds}s ago"
+        elif total_seconds < 3600:
+            minutes = total_seconds // 60
+            return f"{minutes}m ago"
+        elif total_seconds < 86400:
+            hours = total_seconds // 3600
+            return f"{hours}h ago"
+        else:
+            days = total_seconds // 86400
+            return f"{days}d ago"
+    except (ValueError, TypeError):
+        return "unknown"
+
+
+def create_task_table(tasks: list) -> Table:
+    """Create a rich table for task display."""
+    table = Table(title="Tasks")
+    table.add_column("ID", style="cyan", width=8)
+    table.add_column("Status", style="green", width=12)
+    table.add_column("Task", style="white")
+    table.add_column("Age", style="dim", width=10)
+    table.add_column("Duration", style="dim", width=10)
+
+    for task in tasks:
+        # Truncate ID for display
+        short_id = task[0][:8] if task[0] else "unknown"
+
+        # Color-code status
+        status = task[2] or "unknown"
+        status_colors = {
+            "pending": "yellow",
+            "running": "blue",
+            "completed": "green",
+            "failed": "red",
+        }
+        status_color = status_colors.get(status, "white")
+        status_display = f"[{status_color}]{status.upper()}[/{status_color}]"
+
+        # Truncate task text if too long
+        task_text = task[1][:60] + "..." if len(task[1]) > 60 else task[1]
+
+        # Format age and duration
+        age = format_age(task[3]) if task[3] else "unknown"
+        duration = format_duration(task[3], task[4]) if task[3] else "unknown"
+
+        table.add_row(short_id, status_display, task_text, age, duration)
+
+    return table
 
 
 def run_async(coro):
@@ -603,8 +696,75 @@ def task_status(task_id: str) -> None:
 
 
 @main.command()
+@click.option("--watch", is_flag=True, help="Watch for live updates")
+def tasks(watch: bool) -> None:
+    """Show all tasks with improved status visibility."""
+    try:
+        project_root = get_project_root()
+        db_path = project_root / "tale.db"
+
+        if not db_path.exists():
+            console.print(
+                Panel(
+                    "[red]No tale project found. Run 'tale init' first.[/red]",
+                    title="Error",
+                )
+            )
+            return
+
+        def get_tasks():
+            """Get tasks from database."""
+            db = Database(str(db_path))
+            with db.get_connection() as conn:
+                cursor = conn.execute(
+                    """
+                    SELECT id, task_text, status, created_at, updated_at
+                    FROM tasks
+                    ORDER BY created_at DESC
+                """
+                )
+                return cursor.fetchall()
+
+        if watch:
+            # Live updating display
+            def generate_display():
+                tasks = get_tasks()
+                if not tasks:
+                    return Panel(
+                        "[dim]No tasks found. Submit a task with 'tale submit \"your task\"'[/dim]",
+                        title="Tasks",
+                    )
+                return create_task_table(tasks)
+
+            with Live(generate_display(), refresh_per_second=2) as live:
+                try:
+                    while True:
+                        time.sleep(0.5)
+                        live.update(generate_display())
+                except KeyboardInterrupt:
+                    console.print("\n[dim]Stopped watching tasks.[/dim]")
+        else:
+            # Single display
+            tasks = get_tasks()
+            if not tasks:
+                console.print(
+                    Panel(
+                        "[dim]No tasks found. Submit a task with 'tale submit \"your task\"'[/dim]",
+                        title="Tasks",
+                    )
+                )
+                return
+
+            table = create_task_table(tasks)
+            console.print(table)
+
+    except Exception as e:
+        console.print(Panel(f"[red]Error listing tasks: {e}[/red]", title="Error"))
+
+
+@main.command()
 def list() -> None:
-    """List all tasks in the project."""
+    """List all tasks in the project (alias for tasks)."""
     try:
         project_root = get_project_root()
         db_path = project_root / "tale.db"
@@ -622,7 +782,7 @@ def list() -> None:
         with db.get_connection() as conn:
             cursor = conn.execute(
                 """
-                SELECT id, task_text, status, created_at
+                SELECT id, task_text, status, created_at, updated_at
                 FROM tasks
                 ORDER BY created_at DESC
             """
@@ -638,22 +798,7 @@ def list() -> None:
             )
             return
 
-        table = Table(title="Tasks")
-        table.add_column("ID", style="cyan", width=8)
-        table.add_column("Status", style="green", width=10)
-        table.add_column("Task", style="white")
-        table.add_column("Created", style="dim", width=16)
-
-        for task in tasks:
-            # Truncate ID for display
-            short_id = task[0][:8] if task[0] else "unknown"
-            # Truncate task text if too long
-            task_text = task[1][:60] + "..." if len(task[1]) > 60 else task[1]
-            # Format timestamp
-            created = task[3][:16] if task[3] else "unknown"
-
-            table.add_row(short_id, task[2], task_text, created)
-
+        table = create_task_table(tasks)
         console.print(table)
 
     except Exception as e:
