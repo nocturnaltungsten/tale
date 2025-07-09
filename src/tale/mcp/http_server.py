@@ -4,6 +4,7 @@ import asyncio
 import inspect
 import json
 import logging
+import time
 from collections.abc import Callable
 from typing import Any, Union, get_type_hints
 
@@ -41,6 +42,7 @@ class HTTPMCPServer:
 
         # Running state
         self.runner: web.AppRunner | None = None
+        self.start_time: float | None = None
 
     def setup_routes(self):
         """Setup HTTP routes for MCP communication."""
@@ -267,13 +269,28 @@ class HTTPMCPServer:
     async def health_check(self, request: web.Request) -> web.Response:
         """Health check endpoint."""
         return web.json_response(
-            {"status": "healthy", "server": self.name, "version": self.version}
+            {
+                "status": "healthy",
+                "server": self.name,
+                "version": self.version,
+                "port": self.port,
+                "transport": "http",
+                "uptime_seconds": self._get_uptime_seconds(),
+                "tools_count": len(self.tools),
+            }
         )
+
+    def _get_uptime_seconds(self) -> float:
+        """Get server uptime in seconds."""
+        if self.start_time is None:
+            return 0.0
+        return time.time() - self.start_time
 
     async def start(self):
         """Start the HTTP server."""
         logger.info(f"Starting HTTP MCP server '{self.name}' on port {self.port}")
 
+        self.start_time = time.time()
         self.runner = web.AppRunner(self.app)
         await self.runner.setup()
 
@@ -288,3 +305,4 @@ class HTTPMCPServer:
             logger.info(f"Stopping HTTP MCP server '{self.name}'")
             await self.runner.cleanup()
             self.runner = None
+            self.start_time = None
