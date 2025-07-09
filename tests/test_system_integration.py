@@ -12,7 +12,7 @@ import pytest
 from click.testing import CliRunner
 
 from tale.cli.main import main
-from tale.orchestration.coordinator import Coordinator
+from tale.orchestration.coordinator_http import HTTPCoordinator
 from tale.storage.database import Database
 from tale.storage.task_store import TaskStore, get_task
 
@@ -379,7 +379,7 @@ class TestSystemIntegration:
         with patch("subprocess.Popen", return_value=mock_execution_server_process):
             # Initialize coordinator
             db_path = temp_project_dir / "tale.db"
-            coordinator = Coordinator(str(db_path))
+            coordinator = HTTPCoordinator(str(db_path))
 
             try:
                 # Start coordinator

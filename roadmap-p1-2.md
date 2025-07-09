@@ -212,7 +212,19 @@ VALIDATION:
 - Run: tale serve (should start HTTP servers without --http flag)
 - Run: tale submit "test task" (should work via HTTP)
 COMMIT: "refactor(cli): make HTTP mode default"
-STATUS: [ ]
+STATUS: [COMPLETE] - 2025-07-09 16:45
+NOTES:
+- Key decisions: Removed --http flag completely, made HTTP transport the default and only option
+- Implementation approach: Updated CLI imports to use only HTTPCoordinator, removed all stdio coordinator usage
+- Challenges faced: None significant - straightforward refactoring of command arguments and coordinator instantiation
+- Performance impact: CLI now defaults to HTTP transport with explicit port information (8080/8081)
+- Testing coverage: All CLI commands tested for import and help functionality, removed stdio dependencies
+- Documentation updates: Updated command help text to reflect HTTP-only architecture
+- Future considerations: CLI ready for HTTP-only ecosystem, simplified user experience without transport selection
+- Dependencies affected: Removed import of old Coordinator class, uses only HTTPCoordinator
+- Added top-level 'serve' command as alias to 'servers start' for user convenience
+- All server startup messages now clearly indicate HTTP transport and port numbers
+- Commit hash: 90e3ece
 ```
 
 #### 1.5.e1h - Delete stdio Coordinator

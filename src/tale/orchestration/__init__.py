@@ -1,5 +1,5 @@
 """Orchestration module for managing server coordination and communication."""
 
-from .coordinator import Coordinator
+from .coordinator_http import HTTPCoordinator
 
-__all__ = ["Coordinator"]
+__all__ = ["HTTPCoordinator"]

@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from tale.orchestration.coordinator import Coordinator
+from tale.orchestration.coordinator_http import HTTPCoordinator
 from tale.storage.task_store import create_task
 
 
@@ -20,7 +20,7 @@ class TestCoordinator:
         with tempfile.NamedTemporaryFile(delete=False) as f:
             db_path = f.name
 
-        coordinator = Coordinator(db_path=db_path)
+        coordinator = HTTPCoordinator(db_path=db_path)
         yield coordinator
 
         # Cleanup
@@ -330,7 +330,7 @@ class TestCoordinatorIntegration:
         with tempfile.NamedTemporaryFile(delete=False) as f:
             db_path = f.name
 
-        coordinator = Coordinator(db_path=db_path)
+        coordinator = HTTPCoordinator(db_path=db_path)
 
         # Create test task
         task_id = create_task("Test integration task")

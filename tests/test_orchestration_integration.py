@@ -9,7 +9,7 @@ import time
 import pytest
 import pytest_asyncio
 
-from tale.orchestration.coordinator import Coordinator
+from tale.orchestration.coordinator_http import HTTPCoordinator
 from tale.storage.database import Database
 from tale.storage.schema import create_tasks_table
 from tale.storage.task_store import TaskStore
@@ -41,7 +41,7 @@ class TestOrchestrationIntegration:
     @pytest_asyncio.fixture
     async def coordinator(self, test_db):
         """Create and start coordinator with test database."""
-        coordinator = Coordinator(test_db)
+        coordinator = HTTPCoordinator(test_db)
         await coordinator.start()
         # Give servers time to fully initialize
         await asyncio.sleep(3)
