@@ -147,12 +147,12 @@ class HTTPUXAgentServer(HTTPMCPServer):
 
 Assistant:"""
 
-                    reply = await ux_model.generate(prompt)
-
-                    # Enhanced task detection with confidence scoring
-                    task_detected, confidence = await self._analyze_task_intent(
-                        message, ux_model
+                    reply = await asyncio.wait_for(
+                        ux_model.generate(prompt), timeout=10.0
                     )
+
+                    # Simplified task detection to prevent hanging
+                    task_detected, confidence = self._simple_task_detection(message)
 
                     model_time = time.time() - start_time
                     logger.info(f"UX model conversation completed in {model_time:.3f}s")
@@ -178,6 +178,10 @@ Assistant:"""
                         "dual_model_used": True,
                         "conversation_turns": len(self.conversation_state.history),
                     }
+                except asyncio.TimeoutError:
+                    logger.warning(
+                        "UX model generation timed out after 10s, using fallback"
+                    )
                 except Exception as e:
                     logger.warning(f"UX model conversation failed: {e}, using fallback")
 
@@ -301,6 +305,21 @@ Assistant:"""
         else:
             return f"Task status: {status}"
 
+    def _simple_task_detection(self, message: str) -> tuple[bool, float]:
+        """Simple keyword-based task detection to prevent hanging.
+
+        Args:
+            message: User's message
+
+        Returns:
+            tuple: (task_detected, confidence_score)
+        """
+        keyword_matches = sum(
+            1 for keyword in self.task_keywords if keyword in message.lower()
+        )
+        confidence = min(keyword_matches * 0.3, 0.8)
+        return keyword_matches > 0, confidence
+
     async def _analyze_task_intent(self, message: str, ux_model) -> tuple[bool, float]:
         """Analyze user intent for task detection using UX model.
 
@@ -388,7 +407,8 @@ Respond with: task|conversation|system|confidence_score(0.0-1.0)"""
         """Initialize the model pool for dual-model architecture."""
         try:
             logger.info("Initializing model pool for UX agent server...")
-            success = await self.model_pool.initialize()
+            # Add timeout to prevent hanging
+            success = await asyncio.wait_for(self.model_pool.initialize(), timeout=30.0)
             if success:
                 self.model_pool_initialized = True
                 logger.info("Model pool initialized successfully")
@@ -396,6 +416,10 @@ Respond with: task|conversation|system|confidence_score(0.0-1.0)"""
                 logger.error(
                     "Model pool initialization failed - falling back to simple responses"
                 )
+        except asyncio.TimeoutError:
+            logger.error(
+                "Model pool initialization timed out after 30s - falling back to simple responses"
+            )
         except Exception as e:
             logger.error(
                 f"Model pool initialization error: {e} - falling back to simple responses"
