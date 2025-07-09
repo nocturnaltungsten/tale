@@ -79,7 +79,7 @@ target-version = ['py310']
 line-length = 88
 target-version = "py310"
 select = ["E", "F", "I", "N", "W", "UP"]
-ignore = ["E501"]  # Line too long (handled by black)
+ignore = ["E501", "N818"]  # Line too long (handled by black), Exception naming (TaleBaseException required)
 
 [tool.ruff.isort]
 known-first-party = ["tale"]

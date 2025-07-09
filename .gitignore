@@ -67,6 +67,9 @@ dev-docs/
 .DS_Store
 Thumbs.db
 
+# uv lock file
+uv.lock
+
 # Project specific
 data/*.db
 checkpoints/
