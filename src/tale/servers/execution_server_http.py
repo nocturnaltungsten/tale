@@ -5,6 +5,7 @@ import logging
 import time
 from typing import Any
 
+from ..constants import EXECUTION_PORT
 from ..mcp.http_server import HTTPMCPServer
 from ..models.simple_client import SimpleOllamaClient
 from ..storage.database import Database
@@ -16,7 +17,7 @@ logger = logging.getLogger(__name__)
 class HTTPExecutionServer(HTTPMCPServer):
     """Task execution server with HTTP transport."""
 
-    def __init__(self, model_name: str = "qwen2.5:7b", port: int = 8081):
+    def __init__(self, model_name: str = "qwen2.5:7b", port: int = EXECUTION_PORT):
         """Initialize HTTP Execution Server.
 
         Args:
@@ -155,7 +156,9 @@ async def main():
     import argparse
 
     parser = argparse.ArgumentParser(description="HTTP MCP Execution Server")
-    parser.add_argument("--port", type=int, default=8081, help="Port to listen on")
+    parser.add_argument(
+        "--port", type=int, default=EXECUTION_PORT, help="Port to listen on"
+    )
     parser.add_argument("--model", default="qwen2.5:7b", help="Model to use")
     args = parser.parse_args()
 

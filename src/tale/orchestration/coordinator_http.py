@@ -6,6 +6,7 @@ import logging
 import time
 from typing import Any
 
+from ..constants import EXECUTION_PORT, GATEWAY_PORT
 from ..mcp.http_client import HTTPMCPClient
 from ..servers.execution_server_http import HTTPExecutionServer
 from ..servers.gateway_server_http import HTTPGatewayServer
@@ -38,8 +39,8 @@ class HTTPCoordinator:
         self.execution_server: HTTPExecutionServer | None = None
 
         # Server URLs
-        self.gateway_url = "http://localhost:8080"
-        self.execution_url = "http://localhost:8081"
+        self.gateway_url = f"http://localhost:{GATEWAY_PORT}"
+        self.execution_url = f"http://localhost:{EXECUTION_PORT}"
 
         # MCP clients
         self.gateway_client: HTTPMCPClient | None = None
@@ -86,19 +87,19 @@ class HTTPCoordinator:
     async def start_servers(self):
         """Start HTTP MCP servers."""
         # Start execution server first (gateway depends on it)
-        self.execution_server = HTTPExecutionServer(port=8081)
+        self.execution_server = HTTPExecutionServer(port=EXECUTION_PORT)
         await self.execution_server.start()
-        logger.info("Started HTTP execution server on port 8081")
+        logger.info(f"Started HTTP execution server on port {EXECUTION_PORT}")
 
         # Give it time to fully start
         await asyncio.sleep(1)
 
         # Start gateway server
         self.gateway_server = HTTPGatewayServer(
-            port=8080, execution_server_url=self.execution_url
+            port=GATEWAY_PORT, execution_server_url=self.execution_url
         )
         await self.gateway_server.start()
-        logger.info("Started HTTP gateway server on port 8080")
+        logger.info(f"Started HTTP gateway server on port {GATEWAY_PORT}")
 
         # Give it time to fully start
         await asyncio.sleep(1)

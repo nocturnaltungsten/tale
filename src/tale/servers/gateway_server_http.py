@@ -3,6 +3,7 @@
 import logging
 from typing import Any
 
+from ..constants import EXECUTION_PORT, GATEWAY_PORT
 from ..exceptions import DatabaseException, ServerException, TaskException
 from ..mcp.http_client import HTTPMCPClient
 from ..mcp.http_server import HTTPMCPServer
@@ -16,7 +17,9 @@ class HTTPGatewayServer(HTTPMCPServer):
     """Gateway server for task management with HTTP transport."""
 
     def __init__(
-        self, port: int = 8080, execution_server_url: str = "http://localhost:8081"
+        self,
+        port: int = GATEWAY_PORT,
+        execution_server_url: str = f"http://localhost:{EXECUTION_PORT}",
     ):
         """Initialize HTTP Gateway Server.
 
@@ -183,10 +186,12 @@ async def main():
     import argparse
 
     parser = argparse.ArgumentParser(description="HTTP MCP Gateway Server")
-    parser.add_argument("--port", type=int, default=8080, help="Port to listen on")
+    parser.add_argument(
+        "--port", type=int, default=GATEWAY_PORT, help="Port to listen on"
+    )
     parser.add_argument(
         "--execution-server",
-        default="http://localhost:8081",
+        default=f"http://localhost:{EXECUTION_PORT}",
         help="URL of execution server",
     )
     args = parser.parse_args()
