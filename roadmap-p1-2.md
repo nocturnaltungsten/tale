@@ -284,7 +284,7 @@ NOTES:
 - Key implementation: Added tool_metadata dict to store pre-computed schemas, updated both HTTP and SSE handlers
 - Schema generation: Supports str, int, float, bool, list, dict, Optional types, and Union types with proper JSON schema output
 - Validation confirmed: curl test shows proper tool schemas with parameter types and required fields
-- Commit hash: [pending]
+- Commit hash: b2d5394
 ```
 
 #### 1.5.e2b - Fix HTTP Health Check Endpoints
