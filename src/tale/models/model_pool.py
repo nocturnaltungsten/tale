@@ -155,7 +155,7 @@ class ModelPool:
         self._setup_core_models()
 
     def _setup_core_models(self):
-        """Setup the core always-loaded models per architecture."""
+        """Setup the core models per UX-only always-loaded architecture."""
         # UX model for conversation (always loaded, 2-4GB)
         self.models["ux"] = ModelClient(
             model_name="qwen2.5:7b",  # Using 7b as lighter UX model
@@ -164,10 +164,10 @@ class ModelPool:
             memory_requirement=4096,  # ~4GB
         )
 
-        # Task model for execution (always loaded, 14-24GB)
+        # Task model for execution (on-demand loading, 14-24GB)
         self.models["task"] = ModelClient(
             model_name="qwen3:14b",
-            always_loaded=True,
+            always_loaded=False,  # Changed to on-demand
             base_url=self.base_url,
             memory_requirement=16384,  # ~16GB
         )
@@ -180,8 +180,8 @@ class ModelPool:
             memory_requirement=4096,
         )
 
-        # Track which models are always loaded
-        self.always_loaded = {"ux", "task"}
+        # Track which models are always loaded (UX only)
+        self.always_loaded = {"ux"}
 
     async def initialize(self) -> bool:
         """Initialize the model pool by loading always-on models.
@@ -223,15 +223,14 @@ class ModelPool:
             self.initialization_time = time.time() - start_time
 
             if success_count == len(self.always_loaded):
-                # Validate both models are actually loaded in VRAM
-                validation_result = self._validate_dual_model_residency()
+                # Validate UX model is actually loaded in VRAM
+                validation_result = self._validate_ux_model_residency()
                 if validation_result["valid"]:
                     self.logger.info(
                         f"Model pool initialized successfully in {self.initialization_time:.2f}s"
                     )
                     self.logger.info(
-                        f"Total VRAM usage: {validation_result['total_memory_gb']:.1f}GB "
-                        f"(UX: {validation_result['ux_memory_gb']:.1f}GB, Task: {validation_result['task_memory_gb']:.1f}GB)"
+                        f"UX model VRAM usage: {validation_result['ux_memory_gb']:.1f}GB"
                     )
                     return True
                 else:
@@ -257,8 +256,8 @@ class ModelPool:
             self.logger.error(f"Error loading model {model_key}: {e}")
             return False
 
-    def _validate_dual_model_residency(self) -> dict:
-        """Validate both models are simultaneously loaded in VRAM.
+    def _validate_ux_model_residency(self) -> dict:
+        """Validate UX model is loaded in VRAM.
 
         Returns:
             Dict with validation result, memory usage, and any error messages
@@ -280,12 +279,9 @@ class ModelPool:
                 return {"valid": False, "error": "No models found in ollama ps output"}
 
             ux_model = self.models["ux"].model_name  # qwen2.5:7b
-            task_model = self.models["task"].model_name  # qwen3:14b
 
             ux_found = False
-            task_found = False
             ux_memory_gb = 0.0
-            task_memory_gb = 0.0
 
             # Skip header line, check each model line
             for line in lines[1:]:
@@ -313,36 +309,25 @@ class ModelPool:
                 if model_name == ux_model:
                     ux_found = True
                     ux_memory_gb = memory_gb
-                elif model_name == task_model:
-                    task_found = True
-                    task_memory_gb = memory_gb
+                    break  # Found UX model, no need to continue
 
-            # Validate both models found
+            # Validate UX model found
             if not ux_found:
                 return {
                     "valid": False,
                     "error": f"UX model {ux_model} not found in VRAM",
                 }
-            if not task_found:
+
+            # Validate memory meets minimum requirements (4GB for UX model)
+            if ux_memory_gb < 4.0:
                 return {
                     "valid": False,
-                    "error": f"Task model {task_model} not found in VRAM",
-                }
-
-            total_memory_gb = ux_memory_gb + task_memory_gb
-
-            # Validate memory meets minimum requirements (18GB total)
-            if total_memory_gb < 18.0:
-                return {
-                    "valid": False,
-                    "error": f"Total VRAM usage {total_memory_gb:.1f}GB < 18GB minimum requirement",
+                    "error": f"UX VRAM usage {ux_memory_gb:.1f}GB < 4GB minimum requirement",
                 }
 
             return {
                 "valid": True,
                 "ux_memory_gb": ux_memory_gb,
-                "task_memory_gb": task_memory_gb,
-                "total_memory_gb": total_memory_gb,
                 "error": None,
             }
 
@@ -586,6 +571,9 @@ class ModelPool:
         Returns:
             Dictionary with current status
         """
+        # Get UX model VRAM status
+        ux_vram_status = self._validate_ux_model_residency()
+
         return {
             "initialized": self.initialization_time is not None,
             "loaded_models": list(self.loaded_models),
@@ -593,6 +581,8 @@ class ModelPool:
             "total_models": len(self.models),
             "available_memory_mb": self.get_available_memory(),
             "total_memory_mb": self.get_total_memory(),
+            "ux_model_vram_loaded": ux_vram_status["valid"],
+            "ux_model_vram_gb": ux_vram_status.get("ux_memory_gb", 0.0),
         }
 
     async def shutdown(self):
