@@ -129,6 +129,10 @@ class HTTPMCPClient:
 
                 result = await response.json()
 
+                # Check for error in response
+                if "error" in result:
+                    raise Exception(f"Server error: {result['error']}")
+
                 # Extract content from MCP response format
                 if "content" in result and len(result["content"]) > 0:
                     return result["content"][0].get("text", "")
