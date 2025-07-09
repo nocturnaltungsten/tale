@@ -1,6 +1,7 @@
 """HTTP-based Gateway MCP Server - Task routing and management."""
 
 import logging
+import time
 from typing import Any
 
 from ..constants import EXECUTION_PORT, GATEWAY_PORT
@@ -12,6 +13,7 @@ from ..exceptions import (
 )
 from ..mcp.http_client import HTTPMCPClient
 from ..mcp.http_server import HTTPMCPServer
+from ..models.model_pool import ModelPool
 from ..storage.database import Database
 from ..storage.task_store import TaskStore
 from ..validation import validate_task_text
@@ -37,6 +39,8 @@ class HTTPGatewayServer(HTTPMCPServer):
 
         self.execution_server_url = execution_server_url
         self.task_store = TaskStore(Database())
+        self.model_pool = ModelPool()
+        self.model_pool_initialized = False
 
         # Register tools
         self.setup_tools()
@@ -58,11 +62,29 @@ class HTTPGatewayServer(HTTPMCPServer):
             dict: Task creation response with task ID
         """
         try:
+            # Ensure model pool is initialized
+            if not self.model_pool_initialized:
+                await self._initialize_model_pool()
+
             # Validate task text input
             validated_task_text = validate_task_text(task_text)
             logger.info(
                 f"Task text validated successfully: {len(validated_task_text)} chars"
             )
+
+            # Use UX model for quick acknowledgment generation
+            start_time = time.time()
+            try:
+                ux_model = await self.model_pool.get_model("conversation")
+                acknowledgment = await ux_model.generate(
+                    f"Generate a brief acknowledgment for receiving this task: {validated_task_text[:200]}..."
+                )
+                model_time = time.time() - start_time
+                logger.info(f"UX model acknowledgment generated in {model_time:.3f}s")
+            except Exception as e:
+                logger.warning(f"UX model acknowledgment failed: {e}")
+                acknowledgment = "Task received and queued for processing"
+                model_time = 0.0
 
             # Create task in database
             task_id = self.task_store.create_task(validated_task_text)
@@ -71,7 +93,8 @@ class HTTPGatewayServer(HTTPMCPServer):
             return {
                 "task_id": task_id,
                 "status": "created",
-                "message": "Task received and queued for processing",
+                "message": acknowledgment,
+                "model_response_time": model_time,
             }
 
         except ValidationException as e:
@@ -191,13 +214,51 @@ class HTTPGatewayServer(HTTPMCPServer):
 
     async def get_server_info(self) -> dict[str, Any]:
         """Get server information."""
+        # Get model pool status
+        model_pool_status = (
+            await self.model_pool.get_status()
+            if self.model_pool_initialized
+            else {"initialized": False}
+        )
+
         return {
             "name": self.name,
             "version": self.version,
             "port": self.port,
             "execution_server": self.execution_server_url,
             "status": "running",
+            "model_pool": model_pool_status,
+            "dual_model_enabled": self.model_pool_initialized,
         }
+
+    async def _initialize_model_pool(self):
+        """Initialize the model pool for dual-model architecture."""
+        try:
+            logger.info("Initializing model pool for gateway server...")
+            success = await self.model_pool.initialize()
+            if success:
+                self.model_pool_initialized = True
+                logger.info("Model pool initialized successfully")
+            else:
+                logger.error(
+                    "Model pool initialization failed - falling back to single model"
+                )
+        except Exception as e:
+            logger.error(
+                f"Model pool initialization error: {e} - falling back to single model"
+            )
+
+    async def start(self):
+        """Start the HTTP server with model pool initialization."""
+        # Initialize model pool during server startup
+        await self._initialize_model_pool()
+        await super().start()
+
+    async def stop(self):
+        """Stop the server and cleanup model pool."""
+        if self.model_pool_initialized:
+            await self.model_pool.shutdown()
+        await super().stop()
 
 
 async def main():

@@ -7,6 +7,7 @@ from typing import Any
 
 from ..constants import EXECUTION_PORT
 from ..mcp.http_server import HTTPMCPServer
+from ..models.model_pool import ModelPool
 from ..models.simple_client import SimpleOllamaClient
 from ..storage.database import Database
 from ..storage.task_store import TaskStore
@@ -21,14 +22,16 @@ class HTTPExecutionServer(HTTPMCPServer):
         """Initialize HTTP Execution Server.
 
         Args:
-            model_name: Model to use for execution
+            model_name: Model to use for execution (fallback only)
             port: Port to listen on
         """
         super().__init__("execution-server", "0.1.0", port)
 
         self.model_name = model_name
-        self.client = SimpleOllamaClient(model_name)
+        self.client = SimpleOllamaClient(model_name)  # Fallback client
         self.task_store = TaskStore(Database())
+        self.model_pool = ModelPool()
+        self.model_pool_initialized = False
 
         # Register tools
         self.setup_tools()
@@ -65,41 +68,66 @@ class HTTPExecutionServer(HTTPMCPServer):
             self.task_store.update_task_status(task_id, "running")
             logger.info(f"Started executing task: {task_id}")
 
-            # Execute task with model
-            async with self.client:
-                # Ensure model is healthy
-                if not await self.client.is_healthy():
-                    raise Exception("Ollama server is not healthy")
+            # Execute task with dual model architecture
+            task_text = task.get("task_text", "")
+            prompt = self._create_execution_prompt(task_text)
 
-                # Get task text
-                task_text = task.get("task_text", "")
+            # Try using task model from model pool first
+            result = None
+            model_time = 0.0
 
-                # Create execution prompt
-                prompt = self._create_execution_prompt(task_text)
-
-                # Generate response with timeout
+            if self.model_pool_initialized:
                 try:
+                    model_start = time.time()
+                    task_model = await self.model_pool.get_model("planning")
+                    model_time = time.time() - model_start
+                    logger.info(f"Task model retrieved in {model_time:.3f}s")
+
+                    # Generate response with task model
                     result = await asyncio.wait_for(
-                        self.client.generate(prompt), timeout=300  # 5 minute timeout
+                        task_model.generate(prompt), timeout=300  # 5 minute timeout
                     )
-                except asyncio.TimeoutError:
-                    raise Exception("Task execution timed out after 5 minutes")
+                    logger.info("Task executed with dual-model architecture")
+                except Exception as e:
+                    logger.warning(
+                        f"Task model execution failed: {e}, falling back to single model"
+                    )
+                    result = None
 
-                # Update task status to completed
-                self.task_store.update_task_status(task_id, "completed")
-                execution_time = time.time() - start_time
+            # Fallback to single model if dual-model fails
+            if result is None:
+                async with self.client:
+                    # Ensure model is healthy
+                    if not await self.client.is_healthy():
+                        raise Exception("Ollama server is not healthy")
 
-                logger.info(
-                    f"Task completed successfully: {task_id} ({execution_time:.2f}s)"
-                )
+                    # Generate response with timeout
+                    try:
+                        result = await asyncio.wait_for(
+                            self.client.generate(prompt),
+                            timeout=300,  # 5 minute timeout
+                        )
+                        logger.info("Task executed with fallback single model")
+                    except asyncio.TimeoutError:
+                        raise Exception("Task execution timed out after 5 minutes")
 
-                return {
-                    "task_id": task_id,
-                    "status": "completed",
-                    "message": "Task executed successfully",
-                    "result": result,
-                    "execution_time": execution_time,
-                }
+            # Update task status to completed
+            self.task_store.update_task_status(task_id, "completed")
+            execution_time = time.time() - start_time
+
+            logger.info(
+                f"Task completed successfully: {task_id} ({execution_time:.2f}s)"
+            )
+
+            return {
+                "task_id": task_id,
+                "status": "completed",
+                "message": "Task executed successfully",
+                "result": result,
+                "execution_time": execution_time,
+                "model_switching_time": model_time,
+                "dual_model_used": self.model_pool_initialized,
+            }
 
         except Exception as e:
             # Update task status to failed
@@ -142,13 +170,51 @@ Response:"""
 
     async def get_server_info(self) -> dict[str, Any]:
         """Get server information."""
+        # Get model pool status
+        model_pool_status = (
+            await self.model_pool.get_status()
+            if self.model_pool_initialized
+            else {"initialized": False}
+        )
+
         return {
             "name": self.name,
             "version": self.version,
             "model": self.model_name,
             "port": self.port,
             "status": "running",
+            "model_pool": model_pool_status,
+            "dual_model_enabled": self.model_pool_initialized,
         }
+
+    async def _initialize_model_pool(self):
+        """Initialize the model pool for dual-model architecture."""
+        try:
+            logger.info("Initializing model pool for execution server...")
+            success = await self.model_pool.initialize()
+            if success:
+                self.model_pool_initialized = True
+                logger.info("Model pool initialized successfully")
+            else:
+                logger.error(
+                    "Model pool initialization failed - falling back to single model"
+                )
+        except Exception as e:
+            logger.error(
+                f"Model pool initialization error: {e} - falling back to single model"
+            )
+
+    async def start(self):
+        """Start the HTTP server with model pool initialization."""
+        # Initialize model pool during server startup
+        await self._initialize_model_pool()
+        await super().start()
+
+    async def stop(self):
+        """Stop the server and cleanup model pool."""
+        if self.model_pool_initialized:
+            await self.model_pool.shutdown()
+        await super().stop()
 
 
 async def main():

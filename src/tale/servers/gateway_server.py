@@ -3,6 +3,7 @@
 import asyncio
 import json
 import logging
+import time
 
 from ..constants import EXECUTION_PORT, GATEWAY_PORT
 from ..exceptions import (
@@ -13,6 +14,7 @@ from ..exceptions import (
 )
 from ..mcp.http_client import HTTPMCPClient
 from ..mcp.http_server import HTTPMCPServer
+from ..models.model_pool import ModelPool
 from ..storage.database import Database
 from ..storage.task_store import TaskStore
 from ..validation import validate_task_text
@@ -31,6 +33,8 @@ class GatewayServer(HTTPMCPServer):
         super().__init__("gateway", "0.1.0", port)
         self.task_store = TaskStore(Database())
         self.execution_server_url = execution_server_url
+        self.model_pool = ModelPool()
+        self.model_pool_initialized = False
         self.setup_tools()
 
     def setup_tools(self):
@@ -50,9 +54,27 @@ class GatewayServer(HTTPMCPServer):
             dict: Task reception response with task_id, status, and message
         """
         try:
+            # Ensure model pool is initialized
+            if not self.model_pool_initialized:
+                await self._initialize_model_pool()
+
             # Validate task text input
             validated_task_text = validate_task_text(task_text)
             logger.info(f"Task text validated successfully for user {user_id}")
+
+            # Use UX model for quick acknowledgment generation
+            start_time = time.time()
+            try:
+                ux_model = await self.model_pool.get_model("conversation")
+                acknowledgment = await ux_model.generate(
+                    f"Generate a brief acknowledgment for receiving this task: {validated_task_text[:200]}..."
+                )
+                model_time = time.time() - start_time
+                logger.info(f"UX model acknowledgment generated in {model_time:.3f}s")
+            except Exception as e:
+                logger.warning(f"UX model acknowledgment failed: {e}")
+                acknowledgment = "Task received"
+                model_time = 0.0
 
             # Create task in database
             task_id = self.task_store.create_task(validated_task_text)
@@ -62,7 +84,8 @@ class GatewayServer(HTTPMCPServer):
             return {
                 "task_id": task_id,
                 "status": "received",
-                "message": "Task received",
+                "message": acknowledgment,
+                "model_response_time": model_time,
             }
         except ValidationException as e:
             logger.warning(f"Task validation failed for user {user_id}: {str(e)}")
@@ -187,6 +210,35 @@ class GatewayServer(HTTPMCPServer):
                 f"Failed to execute task: {str(e)}",
                 {"task_id": task_id, "execution_server_url": self.execution_server_url},
             )
+
+    async def _initialize_model_pool(self):
+        """Initialize the model pool for dual-model architecture."""
+        try:
+            logger.info("Initializing model pool for gateway server...")
+            success = await self.model_pool.initialize()
+            if success:
+                self.model_pool_initialized = True
+                logger.info("Model pool initialized successfully")
+            else:
+                logger.error(
+                    "Model pool initialization failed - falling back to single model"
+                )
+        except Exception as e:
+            logger.error(
+                f"Model pool initialization error: {e} - falling back to single model"
+            )
+
+    async def start(self):
+        """Start the HTTP server with model pool initialization."""
+        # Initialize model pool during server startup
+        await self._initialize_model_pool()
+        await super().start()
+
+    async def stop(self):
+        """Stop the server and cleanup model pool."""
+        if self.model_pool_initialized:
+            await self.model_pool.shutdown()
+        await super().stop()
 
 
 async def main():
