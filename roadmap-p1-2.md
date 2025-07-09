@@ -182,7 +182,18 @@ VALIDATION:
 - Run: grep -n "polling" src/tale/servers/execution_server.py (should return nothing)
 - Run: python -m pytest tests/test_execution_server.py -xvs
 COMMIT: "refactor(execution): remove database polling"
-STATUS: [ ]
+STATUS: [COMPLETE] - 2025-07-09 16:30
+NOTES:
+- Key decisions: Removed all database polling code from execution server, converted to event-driven MCP tool pattern
+- Implementation approach: Deleted start_task_polling method, removed polling-related instance variables, simplified start/stop methods
+- Challenges faced: None significant - clean removal of polling architecture
+- Performance impact: Eliminated 2-second polling loops, server now purely event-driven via MCP tool calls
+- Testing coverage: All 8 execution server tests pass, maintained 100% test compatibility
+- Documentation updates: Updated method docstrings to reflect event-driven nature
+- Future considerations: Execution server now matches HTTP pattern, ready for full HTTP migration
+- Dependencies affected: None - uses existing MCP tool registration pattern
+- Added get_server_info tool to match HTTP server pattern for consistency
+- Commit hash: 96672db
 ```
 
 #### 1.5.e1g - Update CLI to Use Only HTTP

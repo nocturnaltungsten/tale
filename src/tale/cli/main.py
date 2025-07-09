@@ -10,7 +10,6 @@ from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
-from tale.orchestration.coordinator import Coordinator
 from tale.orchestration.coordinator_http import HTTPCoordinator
 from tale.storage.database import Database
 from tale.storage.schema import create_tasks_table
@@ -225,22 +224,72 @@ def version() -> None:
     )
 
 
+@main.command()
+def serve() -> None:
+    """Start HTTP MCP servers (alias for 'servers start')."""
+
+    async def _serve():
+        try:
+            project_root = get_project_root()
+            db_path = project_root / "tale.db"
+
+            if not db_path.exists():
+                console.print(
+                    Panel(
+                        "[red]No tale project found. Run 'tale init' first.[/red]",
+                        title="Error",
+                    )
+                )
+                return
+
+            global _coordinator
+            if _coordinator is not None:
+                console.print(
+                    Panel(
+                        "[yellow]Servers already running. Use 'tale servers stop' first.[/yellow]",
+                        title="Warning",
+                    )
+                )
+                return
+
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=console,
+            ) as progress:
+                task = progress.add_task("Starting HTTP servers...", total=None)
+
+                _coordinator = HTTPCoordinator(str(db_path))
+                await _coordinator.start()
+                progress.update(task, description="HTTP servers started successfully!")
+
+            console.print(
+                Panel(
+                    "[green]✓[/green] HTTP MCP servers started successfully\n"
+                    "[green]✓[/green] Gateway server running on port 8080\n"
+                    "[green]✓[/green] Execution server running on port 8081\n"
+                    "[dim]You can now submit tasks with 'tale submit \"your task\"'[/dim]",
+                    title="Success",
+                )
+            )
+
+        except Exception as e:
+            console.print(
+                Panel(f"[red]Error starting servers: {e}[/red]", title="Error")
+            )
+
+    run_async(_serve())
+
+
 @main.group()
 def servers() -> None:
     """Manage MCP servers."""
     pass
 
 
-# Add flag for HTTP mode
-_use_http_mode = False
-
-
 @servers.command()
-@click.option("--http", is_flag=True, help="Use HTTP transport instead of stdio")
-def start(http: bool) -> None:
-    """Start MCP servers."""
-    global _use_http_mode
-    _use_http_mode = http
+def start() -> None:
+    """Start HTTP MCP servers."""
 
     async def _start_servers():
         try:
@@ -271,22 +320,17 @@ def start(http: bool) -> None:
                 TextColumn("[progress.description]{task.description}"),
                 console=console,
             ) as progress:
-                task = progress.add_task("Starting servers...", total=None)
+                task = progress.add_task("Starting HTTP servers...", total=None)
 
-                if _use_http_mode:
-                    _coordinator = HTTPCoordinator(str(db_path))
-                    await _coordinator.start()
-                    progress.update(
-                        task, description="HTTP servers started successfully!"
-                    )
-                else:
-                    _coordinator = Coordinator(str(db_path))
-                    await _coordinator.start()
-                    progress.update(task, description="Servers started successfully!")
+                _coordinator = HTTPCoordinator(str(db_path))
+                await _coordinator.start()
+                progress.update(task, description="HTTP servers started successfully!")
 
             console.print(
                 Panel(
-                    "[green]✓[/green] MCP servers started successfully\n"
+                    "[green]✓[/green] HTTP MCP servers started successfully\n"
+                    "[green]✓[/green] Gateway server running on port 8080\n"
+                    "[green]✓[/green] Execution server running on port 8081\n"
                     "[dim]You can now submit tasks with 'tale submit \"your task\"'[/dim]",
                     title="Success",
                 )
@@ -392,26 +436,14 @@ def server_status() -> None:
 
 
 async def submit_task_via_gateway(task_text: str) -> str:
-    """Submit a task via the gateway server using proper MCP protocol."""
+    """Submit a task via the gateway server using HTTP MCP protocol."""
 
     global _coordinator
     if not _coordinator:
-        raise Exception("Coordinator not started")
+        raise Exception("HTTP coordinator not started")
 
-    # Check if we're using HTTP coordinator
-    if isinstance(_coordinator, HTTPCoordinator):
-        # Use the HTTP coordinator's submit_task method
-        task_id = await _coordinator.submit_task(task_text)
-    else:
-        # Original stdio-based approach
-        # Create MCP client connection to the already-running gateway server
-        # Since the server is already running, we use a simple approach
-        # The coordinator will manage the actual server-to-server communication
-
-        # For now, directly create the task in the database
-        # The coordinator will handle the execution flow
-        task_id = _coordinator.task_store.create_task(task_text)
-
+    # Use the HTTP coordinator's submit_task method
+    task_id = await _coordinator.submit_task(task_text)
     return task_id
 
 
@@ -419,7 +451,7 @@ async def submit_task_via_gateway(task_text: str) -> str:
 @click.argument("task_text")
 @click.option("--wait", is_flag=True, help="Wait for task completion")
 def submit(task_text: str, wait: bool) -> None:
-    """Submit a task for execution via MCP servers."""
+    """Submit a task for execution via HTTP MCP servers."""
 
     async def _submit_task():
         try:
@@ -439,11 +471,11 @@ def submit(task_text: str, wait: bool) -> None:
             if _coordinator is None:
                 console.print(
                     Panel(
-                        "[yellow]Servers not running. Starting them automatically...[/yellow]",
+                        "[yellow]HTTP servers not running. Starting them automatically...[/yellow]",
                         title="Info",
                     )
                 )
-                _coordinator = Coordinator(str(db_path))
+                _coordinator = HTTPCoordinator(str(db_path))
                 await _coordinator.start()
                 # Give servers time to initialize
                 await asyncio.sleep(2)
@@ -468,11 +500,8 @@ def submit(task_text: str, wait: bool) -> None:
                 ) as progress:
                     progress.add_task("Executing task...", total=None)
 
-                    # Delegate to coordinator
-                    if isinstance(_coordinator, HTTPCoordinator):
-                        result = await _coordinator.execute_task(task_id)
-                    else:
-                        result = await _coordinator.delegate_task(task_id)
+                    # Delegate to HTTP coordinator
+                    result = await _coordinator.execute_task(task_id)
 
                     progress.stop()
 
@@ -494,10 +523,7 @@ def submit(task_text: str, wait: bool) -> None:
                         )
             else:
                 # Start task execution in background
-                if isinstance(_coordinator, HTTPCoordinator):
-                    asyncio.create_task(_coordinator.execute_task(task_id))
-                else:
-                    asyncio.create_task(_coordinator.delegate_task(task_id))
+                asyncio.create_task(_coordinator.execute_task(task_id))
                 console.print(
                     Panel(
                         f"[green]Task execution started in background[/green]\n"
