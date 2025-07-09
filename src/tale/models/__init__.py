@@ -6,6 +6,7 @@ This module provides model management capabilities including:
 - Connection management
 """
 
+from .model_pool import ModelClient, ModelPool
 from .ollama_client import (
     ModelInfo,
     ModelNotFoundError,
@@ -17,6 +18,8 @@ from .simple_client import SimpleOllamaClient
 __all__ = [
     "OllamaClient",
     "SimpleOllamaClient",
+    "ModelPool",
+    "ModelClient",
     "ModelInfo",
     "OllamaClientError",
     "ModelNotFoundError",
