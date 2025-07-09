@@ -5,11 +5,17 @@ import json
 import logging
 
 from ..constants import EXECUTION_PORT, GATEWAY_PORT
-from ..exceptions import DatabaseException, ServerException, TaskException
+from ..exceptions import (
+    DatabaseException,
+    ServerException,
+    TaskException,
+    ValidationException,
+)
 from ..mcp.http_client import HTTPMCPClient
 from ..mcp.http_server import HTTPMCPServer
 from ..storage.database import Database
 from ..storage.task_store import TaskStore
+from ..validation import validate_task_text
 
 logger = logging.getLogger(__name__)
 
@@ -44,8 +50,12 @@ class GatewayServer(HTTPMCPServer):
             dict: Task reception response with task_id, status, and message
         """
         try:
+            # Validate task text input
+            validated_task_text = validate_task_text(task_text)
+            logger.info(f"Task text validated successfully for user {user_id}")
+
             # Create task in database
-            task_id = self.task_store.create_task(task_text)
+            task_id = self.task_store.create_task(validated_task_text)
 
             logger.info(f"Task received from user {user_id}: {task_id}")
 
@@ -53,6 +63,13 @@ class GatewayServer(HTTPMCPServer):
                 "task_id": task_id,
                 "status": "received",
                 "message": "Task received",
+            }
+        except ValidationException as e:
+            logger.warning(f"Task validation failed for user {user_id}: {str(e)}")
+            return {
+                "task_id": None,
+                "status": "validation_error",
+                "message": f"Invalid task text: {str(e)}",
             }
         except DatabaseException as e:
             logger.error(f"Database error while receiving task: {str(e)}")
