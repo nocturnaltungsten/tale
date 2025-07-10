@@ -362,7 +362,9 @@ def serve() -> None:
                     "[green]✓[/green] HTTP MCP servers started successfully\n"
                     "[green]✓[/green] Gateway server running on port 8080\n"
                     "[green]✓[/green] Execution server running on port 8081\n"
-                    "[dim]You can now submit tasks with 'tale submit \"your task\"'[/dim]",
+                    "[green]✓[/green] UX agent server running on port 8082\n"
+                    "[dim]You can now submit tasks with 'tale submit \"your task\"'[/dim]\n"
+                    "[dim]Or start a conversation with 'tale chat'[/dim]",
                     title="Success",
                 )
             )
@@ -425,7 +427,9 @@ def start() -> None:
                     "[green]✓[/green] HTTP MCP servers started successfully\n"
                     "[green]✓[/green] Gateway server running on port 8080\n"
                     "[green]✓[/green] Execution server running on port 8081\n"
-                    "[dim]You can now submit tasks with 'tale submit \"your task\"'[/dim]",
+                    "[green]✓[/green] UX agent server running on port 8082\n"
+                    "[dim]You can now submit tasks with 'tale submit \"your task\"'[/dim]\n"
+                    "[dim]Or start a conversation with 'tale chat'[/dim]",
                     title="Success",
                 )
             )

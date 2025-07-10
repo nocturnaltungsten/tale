@@ -6,10 +6,11 @@ import logging
 import time
 from typing import Any
 
-from ..constants import EXECUTION_PORT, GATEWAY_PORT
+from ..constants import EXECUTION_PORT, GATEWAY_PORT, UX_AGENT_PORT
 from ..mcp.http_client import HTTPMCPClient
 from ..servers.execution_server_http import HTTPExecutionServer
 from ..servers.gateway_server_http import HTTPGatewayServer
+from ..servers.ux_agent_server import HTTPUXAgentServer
 from ..storage.database import Database
 from ..storage.task_store import TaskStore
 
@@ -37,10 +38,12 @@ class HTTPCoordinator:
         # Server instances
         self.gateway_server: HTTPGatewayServer | None = None
         self.execution_server: HTTPExecutionServer | None = None
+        self.ux_agent_server: HTTPUXAgentServer | None = None
 
         # Server URLs
         self.gateway_url = f"http://localhost:{GATEWAY_PORT}"
         self.execution_url = f"http://localhost:{EXECUTION_PORT}"
+        self.ux_agent_url = f"http://localhost:{UX_AGENT_PORT}"
 
         # MCP clients
         self.gateway_client: HTTPMCPClient | None = None
@@ -81,6 +84,8 @@ class HTTPCoordinator:
             await self.gateway_server.stop()
         if self.execution_server:
             await self.execution_server.stop()
+        if self.ux_agent_server:
+            await self.ux_agent_server.stop()
 
         logger.info("HTTP coordinator stopped")
 
@@ -100,6 +105,14 @@ class HTTPCoordinator:
         )
         await self.gateway_server.start()
         logger.info(f"Started HTTP gateway server on port {GATEWAY_PORT}")
+
+        # Give it time to fully start
+        await asyncio.sleep(1)
+
+        # Start UX agent server
+        self.ux_agent_server = HTTPUXAgentServer(port=UX_AGENT_PORT)
+        await self.ux_agent_server.start()
+        logger.info(f"Started HTTP UX agent server on port {UX_AGENT_PORT}")
 
         # Give it time to fully start
         await asyncio.sleep(1)
@@ -240,6 +253,10 @@ class HTTPCoordinator:
             "execution": {
                 "running": self.execution_server is not None,
                 "url": self.execution_url,
+            },
+            "ux_agent": {
+                "running": self.ux_agent_server is not None,
+                "url": self.ux_agent_url,
             },
         }
 
