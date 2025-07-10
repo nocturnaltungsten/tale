@@ -13,6 +13,7 @@ from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
+from tale.mcp.http_client import HTTPMCPClient
 from tale.orchestration.coordinator_http import HTTPCoordinator
 from tale.storage.database import Database
 from tale.storage.schema import create_tasks_table
@@ -842,6 +843,127 @@ def list() -> None:
 
     except Exception as e:
         console.print(Panel(f"[red]Error listing tasks: {e}[/red]", title="Error"))
+
+
+@main.command()
+@click.option("--exit", is_flag=True, help="Exit after single message (for testing)")
+def chat(exit: bool) -> None:
+    """Start natural conversation with UX agent."""
+
+    async def _chat_session():
+        import uuid
+
+        try:
+            # Check if project exists
+            project_root = get_project_root()
+            db_path = project_root / "tale.db"
+
+            if not db_path.exists():
+                console.print(
+                    Panel(
+                        "[red]No tale project found. Run 'tale init' first.[/red]",
+                        title="Error",
+                    )
+                )
+                return
+
+            # Generate session ID
+            session_id = str(uuid.uuid4())
+
+            # Create UX agent client
+            ux_client = HTTPMCPClient("http://localhost:8082")
+
+            try:
+                # Connect to UX agent
+                await ux_client.connect()
+
+                console.print(
+                    Panel(
+                        "[green]✓[/green] Connected to UX agent\n"
+                        "[dim]Type 'exit' to quit, Ctrl+C to interrupt[/dim]",
+                        title="Chat Session Started",
+                    )
+                )
+
+                # Chat loop
+                while True:
+                    try:
+                        # Get user input
+                        user_input = console.input("\n[cyan]You:[/cyan] ")
+
+                        # Check for exit
+                        if user_input.lower().strip() in ["exit", "quit", "bye"]:
+                            console.print("[dim]Goodbye![/dim]")
+                            break
+
+                        # Send to UX agent
+                        with console.status("[dim]Thinking...[/dim]"):
+                            response = await ux_client.call_tool(
+                                "conversation",
+                                {"user_input": user_input, "session_id": session_id},
+                            )
+
+                        # Display response
+                        if isinstance(response, dict):
+                            message = response.get("message", "No response")
+                            console.print(f"[green]Tale:[/green] {message}")
+
+                            # Check for task detection
+                            if response.get("task_detected", False):
+                                task_id = response.get("task_id")
+                                confidence = response.get("confidence", 0.0)
+
+                                if task_id:
+                                    console.print(
+                                        Panel(
+                                            f"[yellow]✓[/yellow] Task detected and submitted\n"
+                                            f"[dim]Task ID: {task_id[:8]}...[/dim]\n"
+                                            f"[dim]Confidence: {confidence:.2f}[/dim]",
+                                            title="Task Handoff",
+                                        )
+                                    )
+                                else:
+                                    console.print(
+                                        Panel(
+                                            f"[yellow]Task detected (confidence: {confidence:.2f})[/yellow]\n"
+                                            "[dim]But task submission failed[/dim]",
+                                            title="Task Detection",
+                                        )
+                                    )
+                        else:
+                            console.print(f"[green]Tale:[/green] {response}")
+
+                        # Exit after single message if flag set
+                        if exit:
+                            break
+
+                    except KeyboardInterrupt:
+                        console.print("\n[dim]Chat interrupted.[/dim]")
+                        break
+                    except Exception as e:
+                        console.print(f"[red]Error in conversation: {e}[/red]")
+                        if exit:
+                            break
+                        continue
+
+            except Exception as e:
+                console.print(
+                    Panel(
+                        f"[red]Failed to connect to UX agent: {e}[/red]\n"
+                        f"[dim]Make sure UX agent is running on port 8082[/dim]\n"
+                        f"[dim]Try: tale serve[/dim]",
+                        title="Connection Error",
+                    )
+                )
+                return
+
+            finally:
+                await ux_client.close()
+
+        except Exception as e:
+            console.print(Panel(f"[red]Chat error: {e}[/red]", title="Error"))
+
+    run_async(_chat_session())
 
 
 if __name__ == "__main__":
