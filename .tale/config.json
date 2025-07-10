@@ -4,5 +4,11 @@
     "large": "qwen3:14b"
   },
   "database_path": "tale.db",
-  "checkpoint_dir": "checkpoints"
+  "checkpoint_dir": "checkpoints",
+  "mcp_servers": {
+    "gateway": {"port": 8080},
+    "execution": {"port": 8081},
+    "ux_agent": {"port": 8082},
+    "claude_code": {"port": 8083, "enabled": true}
+  }
 }

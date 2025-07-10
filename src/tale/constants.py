@@ -6,6 +6,7 @@ DEFAULT_HTTP_TIMEOUT = 30  # seconds, aiohttp client timeout
 GATEWAY_PORT = 8080  # standard HTTP alternate port
 EXECUTION_PORT = 8081  # sequential port for execution server
 UX_AGENT_PORT = 8082  # UX agent server port
+CLAUDE_CODE_PORT = 8083  # Claude Code MCP server port
 
 # Task Execution Configuration
 TASK_EXECUTION_TIMEOUT = 300  # seconds, 5 minute model execution limit

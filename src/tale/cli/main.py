@@ -1036,7 +1036,8 @@ async def _handle_chat_command(command: str, console, project_root):
 
 @main.command()
 @click.option("--exit", is_flag=True, help="Exit after single message (for testing)")
-def chat(exit: bool) -> None:
+@click.option("--dev", is_flag=True, help="Developer mode - show formatted metadata")
+def chat(exit: bool, dev: bool) -> None:
     """Start natural conversation with UX agent."""
 
     async def _chat_session():
@@ -1044,8 +1045,7 @@ def chat(exit: bool) -> None:
         import time
         import uuid
 
-        from rich.align import Align
-        from rich.columns import Columns
+        from rich import box
         from rich.live import Live
         from rich.text import Text
 
@@ -1076,11 +1076,13 @@ def chat(exit: bool) -> None:
                 # Connect to UX agent
                 await ux_client.connect()
 
+                mode_info = "[blue]Developer Mode[/blue] - " if dev else ""
                 console.print(
                     Panel(
-                        "[green]✓[/green] Connected to UX agent\n"
-                        "[dim]Type 'exit' to quit, Ctrl+C to interrupt[/dim]",
+                        f"[green]✓[/green] Connected to UX agent\n"
+                        f"{mode_info}[dim]Type 'exit' to quit, Ctrl+C to interrupt[/dim]",
                         title="Chat Session Started",
+                        border_style="blue" if dev else "green",
                     )
                 )
 
@@ -1088,7 +1090,10 @@ def chat(exit: bool) -> None:
                 while True:
                     try:
                         # Get user input
-                        user_input = console.input("\n[cyan]You:[/cyan] ")
+                        if dev:
+                            user_input = console.input("\n[cyan]You:[/cyan] ")
+                        else:
+                            user_input = console.input("\n💬 ")
 
                         # Check for exit
                         if user_input.lower().strip() in ["exit", "quit", "bye"]:
@@ -1112,6 +1117,18 @@ def chat(exit: bool) -> None:
                                 "timestamp": time.time(),
                             }
                         )
+
+                        # Display user message in user mode
+                        if not dev:
+                            user_bubble = Panel(
+                                Text(user_input, style="white"),
+                                title="[cyan]You[/cyan]",
+                                border_style="cyan",
+                                padding=(0, 1),
+                                expand=False,
+                                box=box.ROUNDED,
+                            )
+                            console.print(user_bubble)
 
                         # Create streaming response display
                         start_time = time.time()
@@ -1151,60 +1168,124 @@ def chat(exit: bool) -> None:
                                         "reply", response.get("message", "No response")
                                     )
 
-                                    # Simulate progressive text display for better UX
-                                    words = message.split()
-                                    displayed_words = []
+                                    if dev:
+                                        # Developer mode - show formatted metadata
+                                        from rich.tree import Tree
 
-                                    for word in words:
-                                        displayed_words.append(word)
-                                        current_text = " ".join(displayed_words)
-
-                                        # Create rich display with response time
-                                        response_display = Text()
-                                        response_display.append(
-                                            "Tale: ", style="green bold"
-                                        )
-                                        response_display.append(current_text)
-
-                                        # Add response time indicator
-                                        time_indicator = Text(
-                                            f"Response time: {response_time:.2f}s",
-                                            style="dim",
+                                        # Create a tree structure for better visualization
+                                        tree = Tree(
+                                            "[bold cyan]UX Agent Response[/bold cyan]"
                                         )
 
-                                        display_content = Columns(
-                                            [
-                                                Panel(
-                                                    response_display, title="Response"
-                                                ),
-                                                Align.right(time_indicator),
+                                        # Core response
+                                        response_branch = tree.add(
+                                            "[green]Response Content[/green]"
+                                        )
+                                        response_branch.add(f"[white]{message}[/white]")
+
+                                        # Metadata
+                                        metadata_branch = tree.add(
+                                            "[yellow]Metadata[/yellow]"
+                                        )
+                                        metadata_branch.add(
+                                            f"Response Time: [dim]{response_time:.3f}s[/dim]"
+                                        )
+
+                                        if "task_detected" in response:
+                                            metadata_branch.add(
+                                                f"Task Detected: [bold]{'Yes' if response['task_detected'] else 'No'}[/bold]"
+                                            )
+                                        if "confidence" in response:
+                                            confidence_color = (
+                                                "green"
+                                                if response["confidence"] > 0.7
+                                                else "yellow"
+                                                if response["confidence"] > 0.4
+                                                else "red"
+                                            )
+                                            metadata_branch.add(
+                                                f"Confidence: [{confidence_color}]{response['confidence']:.2f}[/{confidence_color}]"
+                                            )
+                                        if "task_id" in response:
+                                            metadata_branch.add(
+                                                f"Task ID: [cyan]{response['task_id']}[/cyan]"
+                                            )
+                                        if "dual_model_used" in response:
+                                            metadata_branch.add(
+                                                f"Dual Model Used: [magenta]{response['dual_model_used']}[/magenta]"
+                                            )
+
+                                        # Additional fields
+                                        extra_fields = [
+                                            k
+                                            for k in response.keys()
+                                            if k
+                                            not in [
+                                                "reply",
+                                                "message",
+                                                "task_detected",
+                                                "confidence",
+                                                "task_id",
+                                                "dual_model_used",
                                             ]
+                                        ]
+                                        if extra_fields:
+                                            extra_branch = tree.add(
+                                                "[blue]Additional Fields[/blue]"
+                                            )
+                                            for field in extra_fields:
+                                                value = response[field]
+                                                if isinstance(value, dict | list):
+                                                    import json
+
+                                                    value = json.dumps(value, indent=2)
+                                                extra_branch.add(
+                                                    f"{field}: [dim]{value}[/dim]"
+                                                )
+
+                                        live.update(
+                                            Panel(
+                                                tree,
+                                                title="[bold]Developer Mode[/bold]",
+                                                border_style="blue",
+                                            )
                                         )
 
-                                        live.update(display_content)
-                                        await asyncio.sleep(
-                                            0.05
-                                        )  # Simulate typing speed
+                                    else:
+                                        # User mode - clean chat bubbles
+                                        # Simulate progressive text display for better UX
+                                        words = message.split()
+                                        displayed_words = []
 
-                                    # Final display with full response
-                                    final_response = Text()
-                                    final_response.append("Tale: ", style="green bold")
-                                    final_response.append(message)
+                                        for word in words:
+                                            displayed_words.append(word)
+                                            current_text = " ".join(displayed_words)
 
-                                    # Add response time
-                                    time_text = Text(
-                                        f"Response time: {response_time:.2f}s",
-                                        style="dim",
-                                    )
+                                            # Create chat bubble style display
+                                            bubble = Panel(
+                                                Text(current_text, style="white"),
+                                                title="[green]Tale[/green]",
+                                                border_style="green",
+                                                padding=(0, 1),
+                                                expand=False,
+                                            )
 
-                                    final_display = Columns(
-                                        [
-                                            Panel(final_response, title="Response"),
-                                            Align.right(time_text),
-                                        ]
-                                    )
+                                            live.update(bubble)
+                                            await asyncio.sleep(
+                                                0.05
+                                            )  # Simulate typing speed
 
-                                    live.update(final_display)
+                                        # Final display with full response
+                                        final_bubble = Panel(
+                                            Text(message, style="white"),
+                                            title="[green]Tale[/green]",
+                                            subtitle=f"[dim]{response_time:.1f}s[/dim]",
+                                            border_style="green",
+                                            padding=(0, 1),
+                                            expand=False,
+                                        )
+
+                                        live.update(final_bubble)
 
                                     # Add to conversation history
                                     conversation_history.append(
@@ -1217,7 +1298,8 @@ def chat(exit: bool) -> None:
                                     )
 
                                     # Check for task detection
-                                    if response.get("task_detected", False):
+                                    if response.get("task_detected", False) and not dev:
+                                        # In dev mode, task detection is already shown in the tree
                                         task_id = response.get("task_id")
                                         confidence = response.get("confidence", 0.0)
 
@@ -1232,17 +1314,17 @@ def chat(exit: bool) -> None:
                                                 f"[dim]Confidence: {confidence:.2f}[/dim]\n"
                                                 f"[dim]Use /status {task_id[:8]} to check progress[/dim]",
                                                 title="Task Handoff",
+                                                border_style="yellow",
                                             )
                                         else:
                                             task_panel = Panel(
                                                 f"[yellow]Task detected (confidence: {confidence:.2f})[/yellow]\n"
                                                 "[dim]But task submission failed[/dim]",
                                                 title="Task Detection",
+                                                border_style="yellow",
                                             )
 
-                                        live.update(
-                                            Columns([final_display, task_panel])
-                                        )
+                                        console.print(task_panel)
 
                                         # Add task info to conversation history
                                         if task_id:
@@ -1258,25 +1340,40 @@ def chat(exit: bool) -> None:
 
                                 else:
                                     # Handle non-dict responses
-                                    response_display = Text()
-                                    response_display.append(
-                                        "Tale: ", style="green bold"
-                                    )
-                                    response_display.append(str(response))
+                                    if dev:
+                                        # Show raw response in dev mode
+                                        from rich.tree import Tree
 
-                                    time_text = Text(
-                                        f"Response time: {response_time:.2f}s",
-                                        style="dim",
-                                    )
+                                        tree = Tree(
+                                            "[bold cyan]UX Agent Response (Raw)[/bold cyan]"
+                                        )
+                                        tree.add(f"[white]{str(response)}[/white]")
+                                        tree.add(
+                                            f"[dim]Response Time: {response_time:.3f}s[/dim]"
+                                        )
+                                        tree.add(
+                                            f"[dim]Type: {type(response).__name__}[/dim]"
+                                        )
 
-                                    final_display = Columns(
-                                        [
-                                            Panel(response_display, title="Response"),
-                                            Align.right(time_text),
-                                        ]
-                                    )
+                                        live.update(
+                                            Panel(
+                                                tree,
+                                                title="[bold]Developer Mode[/bold]",
+                                                border_style="blue",
+                                            )
+                                        )
+                                    else:
+                                        # User mode - clean display
+                                        final_bubble = Panel(
+                                            Text(str(response), style="white"),
+                                            title="[green]Tale[/green]",
+                                            subtitle=f"[dim]{response_time:.1f}s[/dim]",
+                                            border_style="green",
+                                            padding=(0, 1),
+                                            expand=False,
+                                        )
 
-                                    live.update(final_display)
+                                        live.update(final_bubble)
 
                                     conversation_history.append(
                                         {

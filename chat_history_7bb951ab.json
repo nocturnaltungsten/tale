@@ -1,0 +1,15 @@
+{
+  "session_id": "7bb951ab-5190-44d6-933f-f2fe4f28b237",
+  "timestamp": "2025-07-09T20:27:00.333610",
+  "conversation": [
+    {
+      "role": "user",
+      "content": "Hello, how are you?",
+      "timestamp": 1752118018.724027
+    }
+  ],
+  "summary": {
+    "total_exchanges": 0,
+    "avg_response_time": 0
+  }
+}
