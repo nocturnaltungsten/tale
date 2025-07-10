@@ -1139,7 +1139,7 @@ def chat(exit: bool) -> None:
                             try:
                                 response = await ux_client.call_tool(
                                     "conversation",
-                                    {"message": user_input, "session_id": session_id},
+                                    {"message": user_input},
                                 )
 
                                 response_time = time.time() - start_time
