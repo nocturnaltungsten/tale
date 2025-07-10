@@ -405,6 +405,37 @@ STATUS: [ ]
 NOTES:
 ```
 
+#### 2.2.f3 - Chat Interface Mode Enhancement
+```
+TASK: Add user vs admin/dev mode distinction for chat interface
+RESOURCES:
+- Completed streaming chat implementation from 2.2.f1b
+- Rich UI components for enhanced user experience
+- UX agent JSON response format containing full metadata
+DELIVERABLES:
+- Add --dev flag to chat command for admin/developer mode
+- User mode: Clean, parsed chat with colored/separated "bubbles"
+- Admin mode: Full JSON output with all metadata preserved
+- Implement chat bubble styling with Rich panels and colors
+- Add conversation turn indicators and timestamps
+- Create user-friendly parsing of UX agent responses
+- Maintain backwards compatibility with existing --exit flag
+ACCEPTANCE CRITERIA:
+- Default mode shows clean, user-friendly chat bubbles
+- --dev flag shows full JSON output for debugging
+- Chat bubbles visually separated with colors (user: cyan, assistant: green)
+- Timestamps and metadata available in dev mode
+- Response parsing extracts "reply" field for user display
+- All existing functionality preserved
+VALIDATION:
+- tale chat (shows clean bubbles)
+- tale chat --dev (shows full JSON)
+- Both modes handle task detection appropriately
+- Visual styling enhances readability without breaking functionality
+COMMIT: "feat(cli): add user/dev mode distinction for chat interface"
+STATUS: [ ]
+NOTES:
+```
 
 ### 2.3.a1 - Comprehensive Token Tracking (DECOMPOSED)
 

@@ -364,10 +364,20 @@ def serve() -> None:
                     "[green]✓[/green] Execution server running on port 8081\n"
                     "[green]✓[/green] UX agent server running on port 8082\n"
                     "[dim]You can now submit tasks with 'tale submit \"your task\"'[/dim]\n"
-                    "[dim]Or start a conversation with 'tale chat'[/dim]",
+                    "[dim]Or start a conversation with 'tale chat'[/dim]\n\n"
+                    "[cyan]Press Ctrl+C to stop servers[/cyan]",
                     title="Success",
                 )
             )
+
+            # Keep servers running
+            try:
+                await asyncio.Event().wait()
+            except KeyboardInterrupt:
+                console.print("\n[dim]Shutting down servers...[/dim]")
+                await _coordinator.stop()
+                _coordinator = None
+                console.print("[green]✓[/green] Servers stopped successfully")
 
         except Exception as e:
             console.print(
@@ -429,10 +439,20 @@ def start() -> None:
                     "[green]✓[/green] Execution server running on port 8081\n"
                     "[green]✓[/green] UX agent server running on port 8082\n"
                     "[dim]You can now submit tasks with 'tale submit \"your task\"'[/dim]\n"
-                    "[dim]Or start a conversation with 'tale chat'[/dim]",
+                    "[dim]Or start a conversation with 'tale chat'[/dim]\n\n"
+                    "[cyan]Press Ctrl+C to stop servers[/cyan]",
                     title="Success",
                 )
             )
+
+            # Keep servers running
+            try:
+                await asyncio.Event().wait()
+            except KeyboardInterrupt:
+                console.print("\n[dim]Shutting down servers...[/dim]")
+                await _coordinator.stop()
+                _coordinator = None
+                console.print("[green]✓[/green] Servers stopped successfully")
 
         except Exception as e:
             console.print(
@@ -855,7 +875,14 @@ def chat(exit: bool) -> None:
     """Start natural conversation with UX agent."""
 
     async def _chat_session():
+        import asyncio
+        import time
         import uuid
+
+        from rich.align import Align
+        from rich.columns import Columns
+        from rich.live import Live
+        from rich.text import Text
 
         try:
             # Check if project exists
@@ -876,6 +903,9 @@ def chat(exit: bool) -> None:
 
             # Create UX agent client
             ux_client = HTTPMCPClient("http://localhost:8082")
+
+            # Conversation history for rich display
+            conversation_history = []
 
             try:
                 # Connect to UX agent
@@ -900,46 +930,204 @@ def chat(exit: bool) -> None:
                             console.print("[dim]Goodbye![/dim]")
                             break
 
-                        # Send to UX agent
-                        with console.status("[dim]Thinking...[/dim]"):
-                            response = await ux_client.call_tool(
-                                "conversation",
-                                {"user_input": user_input, "session_id": session_id},
-                            )
+                        # Add user message to history
+                        conversation_history.append(
+                            {
+                                "role": "user",
+                                "content": user_input,
+                                "timestamp": time.time(),
+                            }
+                        )
 
-                        # Display response
-                        if isinstance(response, dict):
-                            message = response.get("message", "No response")
-                            console.print(f"[green]Tale:[/green] {message}")
+                        # Create streaming response display
+                        start_time = time.time()
 
-                            # Check for task detection
-                            if response.get("task_detected", False):
-                                task_id = response.get("task_id")
-                                confidence = response.get("confidence", 0.0)
+                        # Use Live display for streaming effect
+                        with Live(console=console, refresh_per_second=10) as live:
+                            # Show typing indicator
+                            typing_indicator = Text("Tale is thinking", style="dim")
+                            dots = ""
 
-                                if task_id:
-                                    console.print(
-                                        Panel(
-                                            f"[yellow]✓[/yellow] Task detected and submitted\n"
-                                            f"[dim]Task ID: {task_id[:8]}...[/dim]\n"
-                                            f"[dim]Confidence: {confidence:.2f}[/dim]",
-                                            title="Task Handoff",
-                                        )
+                            # Simulate typing indicator for visual feedback
+                            for i in range(6):  # Show typing for ~0.6 seconds
+                                dots = "." * ((i % 3) + 1)
+                                typing_indicator = Text(
+                                    f"Tale is thinking{dots}", style="dim"
+                                )
+                                live.update(
+                                    Panel(
+                                        typing_indicator, title="[dim]Processing[/dim]"
                                     )
+                                )
+                                await asyncio.sleep(0.1)
+
+                            # Send to UX agent
+                            try:
+                                response = await ux_client.call_tool(
+                                    "conversation",
+                                    {"message": user_input},
+                                )
+
+                                response_time = time.time() - start_time
+
+                                # Process response
+                                if isinstance(response, dict):
+                                    message = response.get("message", "No response")
+
+                                    # Simulate progressive text display for better UX
+                                    words = message.split()
+                                    displayed_words = []
+
+                                    for word in words:
+                                        displayed_words.append(word)
+                                        current_text = " ".join(displayed_words)
+
+                                        # Create rich display with response time
+                                        response_display = Text()
+                                        response_display.append(
+                                            "Tale: ", style="green bold"
+                                        )
+                                        response_display.append(current_text)
+
+                                        # Add response time indicator
+                                        time_indicator = Text(
+                                            f"Response time: {response_time:.2f}s",
+                                            style="dim",
+                                        )
+
+                                        display_content = Columns(
+                                            [
+                                                Panel(
+                                                    response_display, title="Response"
+                                                ),
+                                                Align.right(time_indicator),
+                                            ]
+                                        )
+
+                                        live.update(display_content)
+                                        await asyncio.sleep(
+                                            0.05
+                                        )  # Simulate typing speed
+
+                                    # Final display with full response
+                                    final_response = Text()
+                                    final_response.append("Tale: ", style="green bold")
+                                    final_response.append(message)
+
+                                    # Add response time
+                                    time_text = Text(
+                                        f"Response time: {response_time:.2f}s",
+                                        style="dim",
+                                    )
+
+                                    final_display = Columns(
+                                        [
+                                            Panel(final_response, title="Response"),
+                                            Align.right(time_text),
+                                        ]
+                                    )
+
+                                    live.update(final_display)
+
+                                    # Add to conversation history
+                                    conversation_history.append(
+                                        {
+                                            "role": "assistant",
+                                            "content": message,
+                                            "timestamp": time.time(),
+                                            "response_time": response_time,
+                                        }
+                                    )
+
+                                    # Check for task detection
+                                    if response.get("task_detected", False):
+                                        task_id = response.get("task_id")
+                                        confidence = response.get("confidence", 0.0)
+
+                                        await asyncio.sleep(
+                                            0.5
+                                        )  # Brief pause before showing task info
+
+                                        if task_id:
+                                            task_panel = Panel(
+                                                f"[yellow]✓[/yellow] Task detected and submitted\n"
+                                                f"[dim]Task ID: {task_id[:8]}...[/dim]\n"
+                                                f"[dim]Confidence: {confidence:.2f}[/dim]",
+                                                title="Task Handoff",
+                                            )
+                                        else:
+                                            task_panel = Panel(
+                                                f"[yellow]Task detected (confidence: {confidence:.2f})[/yellow]\n"
+                                                "[dim]But task submission failed[/dim]",
+                                                title="Task Detection",
+                                            )
+
+                                        live.update(
+                                            Columns([final_display, task_panel])
+                                        )
+
                                 else:
-                                    console.print(
-                                        Panel(
-                                            f"[yellow]Task detected (confidence: {confidence:.2f})[/yellow]\n"
-                                            "[dim]But task submission failed[/dim]",
-                                            title="Task Detection",
-                                        )
+                                    # Handle non-dict responses
+                                    response_display = Text()
+                                    response_display.append(
+                                        "Tale: ", style="green bold"
                                     )
-                        else:
-                            console.print(f"[green]Tale:[/green] {response}")
+                                    response_display.append(str(response))
+
+                                    time_text = Text(
+                                        f"Response time: {response_time:.2f}s",
+                                        style="dim",
+                                    )
+
+                                    final_display = Columns(
+                                        [
+                                            Panel(response_display, title="Response"),
+                                            Align.right(time_text),
+                                        ]
+                                    )
+
+                                    live.update(final_display)
+
+                                    conversation_history.append(
+                                        {
+                                            "role": "assistant",
+                                            "content": str(response),
+                                            "timestamp": time.time(),
+                                            "response_time": response_time,
+                                        }
+                                    )
+
+                            except Exception as e:
+                                error_display = Text()
+                                error_display.append("Error: ", style="red bold")
+                                error_display.append(str(e))
+
+                                live.update(
+                                    Panel(error_display, title="[red]Error[/red]")
+                                )
+                                await asyncio.sleep(1)  # Show error briefly
 
                         # Exit after single message if flag set
                         if exit:
                             break
+
+                        # Show conversation history summary if more than 3 exchanges
+                        if len(conversation_history) > 6:  # 3 exchanges = 6 messages
+                            assistant_messages = [
+                                msg
+                                for msg in conversation_history
+                                if msg["role"] == "assistant"
+                            ]
+                            if assistant_messages:
+                                avg_response_time = sum(
+                                    msg.get("response_time", 0)
+                                    for msg in assistant_messages
+                                ) / len(assistant_messages)
+
+                                console.print(
+                                    f"\n[dim]Conversation summary: {len(conversation_history)//2} exchanges, "
+                                    f"avg response time: {avg_response_time:.2f}s[/dim]"
+                                )
 
                     except KeyboardInterrupt:
                         console.print("\n[dim]Chat interrupted.[/dim]")
@@ -963,6 +1151,51 @@ def chat(exit: bool) -> None:
 
             finally:
                 await ux_client.close()
+
+                # Export conversation history if it exists
+                if conversation_history:
+                    try:
+                        import json
+                        from datetime import datetime
+
+                        export_data = {
+                            "session_id": session_id,
+                            "timestamp": datetime.now().isoformat(),
+                            "conversation": conversation_history,
+                            "summary": {
+                                "total_exchanges": len(conversation_history) // 2,
+                                "avg_response_time": sum(
+                                    msg.get("response_time", 0)
+                                    for msg in conversation_history
+                                    if msg["role"] == "assistant"
+                                )
+                                / len(
+                                    [
+                                        msg
+                                        for msg in conversation_history
+                                        if msg["role"] == "assistant"
+                                    ]
+                                )
+                                if any(
+                                    msg["role"] == "assistant"
+                                    for msg in conversation_history
+                                )
+                                else 0,
+                            },
+                        }
+
+                        export_path = (
+                            project_root / f"chat_history_{session_id[:8]}.json"
+                        )
+                        with open(export_path, "w") as f:
+                            json.dump(export_data, f, indent=2)
+
+                        console.print(
+                            f"\n[dim]Conversation exported to: {export_path.name}[/dim]"
+                        )
+
+                    except Exception as e:
+                        console.print(f"[dim]Failed to export conversation: {e}[/dim]")
 
         except Exception as e:
             console.print(Panel(f"[red]Chat error: {e}[/red]", title="Error"))
