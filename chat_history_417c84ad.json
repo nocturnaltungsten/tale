@@ -1,0 +1,21 @@
+{
+  "session_id": "417c84ad-a10c-4569-a348-eeaaa1857612",
+  "timestamp": "2025-07-10T01:33:41.239711",
+  "conversation": [
+    {
+      "role": "user",
+      "content": "Hello, how are you?",
+      "timestamp": 1752136419.8439648
+    },
+    {
+      "role": "assistant",
+      "content": "{\"reply\": \"Hello! I'm just a digital assistant, so I don't have feelings, but I'm here and ready to help you with any questions or tasks you might have. How can I assist you today?\", \"task_detected\": false, \"confidence\": 0.0, \"task_id\": null, \"timestamp\": 364443.1600145, \"model_response_time\": 0.7654829025268555, \"dual_model_used\": true, \"conversation_turns\": 1}",
+      "timestamp": 1752136421.2390258,
+      "response_time": 1.3948619365692139
+    }
+  ],
+  "summary": {
+    "total_exchanges": 1,
+    "avg_response_time": 1.3948619365692139
+  }
+}
