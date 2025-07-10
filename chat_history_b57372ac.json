@@ -1,0 +1,21 @@
+{
+  "session_id": "b57372ac-3059-403d-b01f-05988d0d02b8",
+  "timestamp": "2025-07-09T19:11:18.242313",
+  "conversation": [
+    {
+      "role": "user",
+      "content": "Special chars: \\!@#$%^&*()_+{}[]|\\:;\"'<>,.?/",
+      "timestamp": 1752113476.359564
+    },
+    {
+      "role": "assistant",
+      "content": "{\"reply\": \"Those are some common special characters! Do you need help with something specific related to these special characters, like creating a regex pattern to match them, or perhaps you're working on a project that involves handling these characters in a particular way? Let me know how I can assist you further!\", \"task_detected\": false, \"confidence\": 0.0, \"task_id\": null, \"timestamp\": 345203.775648708, \"model_response_time\": 1.270524263381958, \"dual_model_used\": true, \"conversation_turns\": 12}",
+      "timestamp": 1752113478.2402601,
+      "response_time": 1.880640983581543
+    }
+  ],
+  "summary": {
+    "total_exchanges": 1,
+    "avg_response_time": 1.880640983581543
+  }
+}

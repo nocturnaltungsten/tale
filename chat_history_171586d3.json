@@ -1,0 +1,21 @@
+{
+  "session_id": "171586d3-6727-40e8-8c9f-698d1f084c2b",
+  "timestamp": "2025-07-09T19:03:19.444042",
+  "conversation": [
+    {
+      "role": "user",
+      "content": "Hello, test message",
+      "timestamp": 1752112996.28441
+    },
+    {
+      "role": "assistant",
+      "content": "{\"reply\": \"Hello! It looks like you just wanted to send a test message. How can I assist you further? Do you have any specific questions or tasks in mind?\", \"task_detected\": false, \"confidence\": 0.0, \"task_id\": null, \"timestamp\": 344724.977031958, \"model_response_time\": 2.545828104019165, \"dual_model_used\": true, \"conversation_turns\": 6}",
+      "timestamp": 1752112999.44168,
+      "response_time": 3.1571550369262695
+    }
+  ],
+  "summary": {
+    "total_exchanges": 1,
+    "avg_response_time": 3.1571550369262695
+  }
+}

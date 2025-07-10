@@ -869,6 +869,171 @@ def list() -> None:
         console.print(Panel(f"[red]Error listing tasks: {e}[/red]", title="Error"))
 
 
+async def _handle_chat_command(command: str, console, project_root):
+    """Handle in-chat commands like /tasks, /status, /help, /clear."""
+
+    parts = command.strip().split()
+    cmd = parts[0].lower()
+
+    if cmd == "/help":
+        console.print(
+            Panel(
+                """[bold]Available Chat Commands:[/bold]
+
+/help       - Show this help message
+/tasks      - List all tasks
+/status <id> - Show task status (partial ID supported)
+/clear      - Clear conversation history
+/exit       - Exit chat session
+
+[dim]You can also type naturally and tasks will be detected automatically.[/dim]""",
+                title="Chat Help",
+            )
+        )
+
+    elif cmd == "/tasks":
+        # Reuse the existing task listing logic
+        try:
+            db_path = project_root / "tale.db"
+            if not db_path.exists():
+                console.print(Panel("[red]No tale project found.[/red]", title="Error"))
+                return
+
+            from tale.storage.database import Database
+
+            db = Database(str(db_path))
+            with db.get_connection() as conn:
+                cursor = conn.execute(
+                    """
+                    SELECT id, task_text, status, created_at
+                    FROM tasks
+                    ORDER BY created_at DESC
+                    LIMIT 10
+                    """
+                )
+                tasks = cursor.fetchall()
+
+            if not tasks:
+                console.print(Panel("[dim]No tasks found.[/dim]", title="Tasks"))
+                return
+
+            # Create a simple table display
+            from rich.table import Table
+
+            table = Table(show_header=True, header_style="bold magenta")
+            table.add_column("ID", style="cyan", width=12)
+            table.add_column("Task", style="white", width=40)
+            table.add_column("Status", style="green", width=12)
+            table.add_column("Created", style="dim", width=20)
+
+            for task in tasks:
+                task_dict = dict(task)
+                task_id = task_dict["id"][:8] + "..."
+                task_text = task_dict["task_text"]
+                if len(task_text) > 37:
+                    task_text = task_text[:34] + "..."
+                status = task_dict["status"]
+                created = task_dict["created_at"][:16]  # Just date and time
+
+                table.add_row(task_id, task_text, status, created)
+
+            console.print(Panel(table, title="Recent Tasks"))
+
+        except Exception as e:
+            console.print(Panel(f"[red]Error: {e}[/red]", title="Error"))
+
+    elif cmd == "/status":
+        if len(parts) < 2:
+            console.print(Panel("[red]Usage: /status <task_id>[/red]", title="Error"))
+            return
+
+        task_id = parts[1]
+
+        # Reuse existing task status logic
+        try:
+            db_path = project_root / "tale.db"
+            if not db_path.exists():
+                console.print(Panel("[red]No tale project found.[/red]", title="Error"))
+                return
+
+            from tale.storage.database import Database
+
+            db = Database(str(db_path))
+            with db.get_connection() as conn:
+                # First try exact match
+                cursor = conn.execute(
+                    "SELECT id, task_text, status, created_at, updated_at FROM tasks WHERE id = ?",
+                    (task_id,),
+                )
+                task = cursor.fetchone()
+
+                if task:
+                    task_dict = dict(task)
+                else:
+                    # Try partial match
+                    cursor = conn.execute(
+                        "SELECT id, task_text, status, created_at, updated_at FROM tasks WHERE id LIKE ?",
+                        (f"{task_id}%",),
+                    )
+                    matching_tasks = cursor.fetchall()
+
+                    if not matching_tasks:
+                        console.print(
+                            Panel(
+                                f"[red]Task not found: {task_id}[/red]", title="Error"
+                            )
+                        )
+                        return
+                    elif len(matching_tasks) > 1:
+                        console.print(
+                            Panel(
+                                f"[red]Multiple tasks match '{task_id}'. Please be more specific.[/red]",
+                                title="Error",
+                            )
+                        )
+                        return
+                    else:
+                        task_dict = dict(matching_tasks[0])
+
+                # Display task info
+                console.print(
+                    Panel(
+                        f"[bold]Task ID:[/bold] {task_dict['id']}\n"
+                        f"[bold]Status:[/bold] {task_dict['status']}\n"
+                        f"[bold]Task:[/bold] {task_dict['task_text']}\n"
+                        f"[bold]Created:[/bold] {task_dict['created_at']}\n"
+                        f"[bold]Updated:[/bold] {task_dict['updated_at']}",
+                        title="Task Status",
+                    )
+                )
+
+        except Exception as e:
+            console.print(Panel(f"[red]Error: {e}[/red]", title="Error"))
+
+    elif cmd == "/clear":
+        # Clear screen for chat history
+        console.clear()
+        console.print(
+            Panel(
+                "[green]✓[/green] Chat history cleared\n"
+                "[dim]Previous conversation context preserved for AI[/dim]",
+                title="Chat Cleared",
+            )
+        )
+
+    elif cmd == "/exit":
+        console.print("[dim]Goodbye![/dim]")
+        return "exit"
+
+    else:
+        console.print(
+            Panel(
+                f"[red]Unknown command: {cmd}[/red]\n[dim]Type /help for available commands[/dim]",
+                title="Error",
+            )
+        )
+
+
 @main.command()
 @click.option("--exit", is_flag=True, help="Exit after single message (for testing)")
 def chat(exit: bool) -> None:
@@ -930,6 +1095,15 @@ def chat(exit: bool) -> None:
                             console.print("[dim]Goodbye![/dim]")
                             break
 
+                        # Handle in-chat commands
+                        if user_input.startswith("/"):
+                            result = await _handle_chat_command(
+                                user_input, console, project_root
+                            )
+                            if result == "exit":
+                                break
+                            continue
+
                         # Add user message to history
                         conversation_history.append(
                             {
@@ -965,14 +1139,17 @@ def chat(exit: bool) -> None:
                             try:
                                 response = await ux_client.call_tool(
                                     "conversation",
-                                    {"message": user_input},
+                                    {"message": user_input, "session_id": session_id},
                                 )
 
                                 response_time = time.time() - start_time
 
                                 # Process response
                                 if isinstance(response, dict):
-                                    message = response.get("message", "No response")
+                                    # Handle UX agent response format
+                                    message = response.get(
+                                        "reply", response.get("message", "No response")
+                                    )
 
                                     # Simulate progressive text display for better UX
                                     words = message.split()
@@ -1052,7 +1229,8 @@ def chat(exit: bool) -> None:
                                             task_panel = Panel(
                                                 f"[yellow]✓[/yellow] Task detected and submitted\n"
                                                 f"[dim]Task ID: {task_id[:8]}...[/dim]\n"
-                                                f"[dim]Confidence: {confidence:.2f}[/dim]",
+                                                f"[dim]Confidence: {confidence:.2f}[/dim]\n"
+                                                f"[dim]Use /status {task_id[:8]} to check progress[/dim]",
                                                 title="Task Handoff",
                                             )
                                         else:
@@ -1065,6 +1243,18 @@ def chat(exit: bool) -> None:
                                         live.update(
                                             Columns([final_display, task_panel])
                                         )
+
+                                        # Add task info to conversation history
+                                        if task_id:
+                                            conversation_history.append(
+                                                {
+                                                    "role": "system",
+                                                    "content": f"Task submitted: {task_id}",
+                                                    "timestamp": time.time(),
+                                                    "task_id": task_id,
+                                                    "confidence": confidence,
+                                                }
+                                            )
 
                                 else:
                                     # Handle non-dict responses
