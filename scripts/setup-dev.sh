@@ -22,12 +22,22 @@ else
     echo "✅ uv package manager found"
 fi
 
-# Create virtual environment
-echo "🐍 Creating virtual environment..."
-uv venv
+# Create virtual environment if it doesn't exist
+if [ ! -d "venv" ] && [ ! -d ".venv" ]; then
+    echo "🐍 Creating virtual environment..."
+    uv venv venv
+else
+    echo "✅ Virtual environment already exists"
+fi
 
-# Activate virtual environment
-source .venv/bin/activate
+# Activate virtual environment (prefer existing venv over .venv)
+if [ -d "venv" ]; then
+    source venv/bin/activate
+    echo "✅ Activated existing venv virtual environment"
+elif [ -d ".venv" ]; then
+    source .venv/bin/activate
+    echo "✅ Activated existing .venv virtual environment"
+fi
 
 # Install dependencies
 echo "📚 Installing dependencies..."

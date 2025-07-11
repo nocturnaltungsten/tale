@@ -21,7 +21,7 @@
 
 ## Prerequisites
 
-- **Python 3.10+**: Required for modern async features and type hints
+- **Python 3.10-3.13**: Supported versions (3.13 compatibility added)
 - **uv**: Fast Python package manager (installed automatically by setup script)
 - **Git**: Version control (with pre-commit hooks)
 
@@ -179,12 +179,19 @@ rm -rf .venv
 
 # If hooks are missing
 pre-commit install
+
+# If core.hooksPath is set (common in projects with git hooks)
+git config --unset-all core.hooksPath
+pre-commit install
 ```
 
 ### Dependency Issues
 ```bash
-# Update dependencies
+# Update dependencies (preferred - uses pyproject.toml)
 uv pip install -e ".[dev]" --upgrade
+
+# Alternative - use requirements-dev.txt
+pip install -r requirements-dev.txt --upgrade
 ```
 
 ### Test Failures
