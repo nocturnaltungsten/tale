@@ -38,7 +38,7 @@ class BaseMCPServer(ABC):
         self.resources: dict[str, Callable[..., Any]] = {}
 
         # Initialize MCP server
-        self.server = Server(self.name)
+        self.server = Server(self.name)  # type: ignore[var-annotated]
         self._register_handlers()
         self._running = False
 
@@ -68,7 +68,7 @@ class BaseMCPServer(ABC):
 
             return tool_list
 
-        @self.server.call_tool()  # type: ignore[misc,no-untyped-call]
+        @self.server.call_tool()  # type: ignore[misc]
         async def handle_call_tool(
             name: str, arguments: dict[str, Any]
         ) -> list[types.TextContent]:
