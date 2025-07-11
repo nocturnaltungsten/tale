@@ -63,7 +63,81 @@ NOTES:
 - Commit hash: 96f8ffd
 ```
 
-#### 2.7.3 - Standardize File Names
+#### 2.7.3 - Fix MCP Client Architecture Violations
+```
+TASK: Replace direct Exception usage in MCP HTTP client
+PRIORITY: CRITICAL - Required for push (5 violations)
+DELIVERABLES:
+- Replace 5 "raise Exception" in src/mcp/http_client.py with NetworkException
+- Map HTTP errors to appropriate NetworkException with context
+- Test MCP client functionality after changes
+ACCEPTANCE CRITERIA:
+- 0 direct Exception raises in src/mcp/http_client.py
+- All HTTP errors use NetworkException with proper context
+- MCP client tests pass
+VALIDATION: grep "raise Exception" src/mcp/http_client.py returns nothing
+COMMIT: "fix(mcp): replace direct Exception usage with NetworkException"
+STATUS: [ ]
+NOTES:
+```
+
+#### 2.7.4 - Fix Model Client Architecture Violations
+```
+TASK: Replace direct Exception usage in model clients
+PRIORITY: CRITICAL - Required for push (4 violations)
+DELIVERABLES:
+- Replace 4 "raise Exception" in src/models/simple_client.py with ModelException
+- Map model loading/execution errors to ModelException with context
+- Test model client functionality after changes
+ACCEPTANCE CRITERIA:
+- 0 direct Exception raises in src/models/simple_client.py
+- All model errors use ModelException with proper context
+- Model client tests pass
+VALIDATION: grep "raise Exception" src/models/simple_client.py returns nothing
+COMMIT: "fix(models): replace direct Exception usage with ModelException"
+STATUS: [ ]
+NOTES:
+```
+
+#### 2.7.5 - Fix Server Architecture Violations
+```
+TASK: Replace direct Exception usage in server components
+PRIORITY: CRITICAL - Required for push (7 violations)
+DELIVERABLES:
+- Replace 1 "raise Exception" in src/cli/main.py with ServerException
+- Replace 4 "raise Exception" in src/orchestration/coordinator_http.py with appropriate exceptions
+- Replace 2 "raise Exception" in src/servers/execution_server_http.py with appropriate exceptions
+- Map server lifecycle errors to ServerException, task errors to TaskException
+ACCEPTANCE CRITERIA:
+- 0 direct Exception raises in server components
+- All server errors use appropriate TaleBaseException subclasses
+- Server functionality preserved
+VALIDATION: grep "raise Exception" src/cli/main.py src/orchestration/ src/servers/ returns nothing
+COMMIT: "fix(servers): replace direct Exception usage with appropriate TaleBaseException subclasses"
+STATUS: [ ]
+NOTES:
+```
+
+#### 2.7.6 - Review Exception Catch Patterns
+```
+TASK: Review broad Exception catches for specificity opportunities
+PRIORITY: MEDIUM - Code quality improvement (71 catches)
+DELIVERABLES:
+- Audit all 71 "except Exception" catches across codebase
+- Identify opportunities to catch specific exception types
+- Update high-impact catches to use TaleBaseException hierarchy
+- Document remaining broad catches with justification
+ACCEPTANCE CRITERIA:
+- All broad Exception catches reviewed and documented
+- High-impact catches use specific exception types where possible
+- Remaining broad catches have inline justification comments
+VALIDATION: Architecture hook passes without warnings
+COMMIT: "refactor(exceptions): improve exception catch specificity"
+STATUS: [ ]
+NOTES:
+```
+
+#### 2.7.7 - Standardize File Names
 ```
 TASK: Fix inconsistent file naming in repository
 PRIORITY: HIGH - Consistency requirement
@@ -84,7 +158,7 @@ NOTES:
 
 ### 2.7.ORGANIZE - Documentation Structure (SECOND PRIORITY)
 
-#### 2.7.4 - Clean Documentation Directory
+#### 2.7.8 - Clean Documentation Directory
 ```
 TASK: Remove problematic documentation files
 PRIORITY: HIGH - Reduce clutter and confusion
@@ -102,7 +176,7 @@ STATUS: [ ]
 NOTES:
 ```
 
-#### 2.7.5 - Organize Documentation Structure
+#### 2.7.9 - Organize Documentation Structure
 ```
 TASK: Create simple, logical documentation organization
 PRIORITY: MEDIUM - Better organization
@@ -120,7 +194,7 @@ STATUS: [ ]
 NOTES:
 ```
 
-#### 2.7.6 - Configuration File Cleanup
+#### 2.7.10 - Configuration File Cleanup
 ```
 TASK: Consolidate and clean configuration files
 PRIORITY: MEDIUM - Reduce configuration complexity
@@ -140,7 +214,7 @@ NOTES:
 
 ### 2.7.MINIMAL - Essential Updates Only (LOWEST PRIORITY)
 
-#### 2.7.7 - Basic README Improvements
+#### 2.7.11 - Basic README Improvements
 ```
 TASK: Make minimal improvements to README.md
 PRIORITY: LOW - Only if time permits
@@ -159,7 +233,7 @@ STATUS: [ ]
 NOTES:
 ```
 
-#### 2.7.8 - Add Essential Legal Files
+#### 2.7.12 - Add Essential Legal Files
 ```
 TASK: Add minimum required legal files
 PRIORITY: LOW - Only if missing and needed
@@ -177,7 +251,7 @@ STATUS: [ ]
 NOTES:
 ```
 
-#### 2.7.9 - Makefile Cleanup
+#### 2.7.13 - Makefile Cleanup
 ```
 TASK: Clean up Makefile for better organization
 PRIORITY: LOW - Only if current Makefile has issues
@@ -198,7 +272,7 @@ NOTES:
 
 ### 2.7.FUTURE - Optional Enhancements (DEFER UNLESS EXPLICITLY NEEDED)
 
-#### 2.7.10 - Script Directory Review
+#### 2.7.14 - Script Directory Review
 ```
 TASK: Review scripts directory for issues
 PRIORITY: DEFER - Only if scripts are broken
