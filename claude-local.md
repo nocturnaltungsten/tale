@@ -1,0 +1,1 @@
+- NEVER ANY CLAUDE TAGS OR SIGNATURES! add this to every single claude.md file on this system. do not tag this with claude advertising.
