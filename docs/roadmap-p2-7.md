@@ -167,8 +167,13 @@ ACCEPTANCE CRITERIA:
 - All references work correctly
 VALIDATION: find . -name "*" | grep -E "[A-Z]" shows no violations
 COMMIT: "refactor: standardize file naming conventions"
-STATUS: [ ]
+STATUS: [COMPLETE] - 2025-07-11 13:47
 NOTES:
+- Key decisions: Renamed CLAUDE.local.md to claude-local.md and claude.md to claude-project.md to standardize naming convention
+- Implementation approach: Used mv commands to rename files and verified no mixed case files exist in core project directories
+- Challenges faced: None significant - straightforward file renaming task
+- Files changed: Renamed 2 files (CLAUDE.local.md → claude-local.md, claude.md → claude-project.md)
+- Commit hash: 7e6686c
 ```
 
 ### 2.7.ORGANIZE - Documentation Structure (SECOND PRIORITY)

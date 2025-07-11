@@ -12,6 +12,7 @@ from typing import Any
 
 import psutil
 
+from ..exceptions import ModelException
 from .ollama_client import OllamaClientError
 from .simple_client import SimpleOllamaClient
 
@@ -70,8 +71,11 @@ class ModelClient:
                 self.logger.error(f"Failed to load model {self.model_name}")
                 return False
 
+        except ModelException:
+            raise  # Re-raise model-specific exceptions
         except Exception as e:
-            self.logger.error(f"Error loading model {self.model_name}: {e}")
+            # Broad catch for unexpected errors during model loading
+            self.logger.error(f"Unexpected error loading model {self.model_name}: {e}")
             return False
 
     async def unload(self) -> bool:
@@ -88,8 +92,13 @@ class ModelClient:
             self.logger.info(f"Model {self.model_name} marked as unloaded")
             return True
 
+        except ModelException:
+            raise  # Re-raise model-specific exceptions
         except Exception as e:
-            self.logger.error(f"Error unloading model {self.model_name}: {e}")
+            # Broad catch for unexpected errors during model unloading
+            self.logger.error(
+                f"Unexpected error unloading model {self.model_name}: {e}"
+            )
             return False
 
     async def generate(self, prompt: str) -> str:
@@ -102,9 +111,16 @@ class ModelClient:
         try:
             async with self.client as client:
                 return await client.generate(prompt)
+        except ModelException:
+            raise  # Re-raise model-specific exceptions
         except Exception as e:
-            self.logger.error(f"Generation failed for {self.model_name}: {e}")
-            raise
+            # Convert unexpected errors to ModelException for consistency
+            self.logger.error(
+                f"Unexpected error during generation for {self.model_name}: {e}"
+            )
+            raise ModelException(
+                f"Model generation failed: {e}", {"model_name": self.model_name}
+            )
 
     async def chat(self, messages: list[dict[str, str]]) -> str:
         """Chat using this model."""
@@ -116,9 +132,16 @@ class ModelClient:
         try:
             async with self.client as client:
                 return await client.chat(messages)
+        except ModelException:
+            raise  # Re-raise model-specific exceptions
         except Exception as e:
-            self.logger.error(f"Chat failed for {self.model_name}: {e}")
-            raise
+            # Convert unexpected errors to ModelException for consistency
+            self.logger.error(
+                f"Unexpected error during chat for {self.model_name}: {e}"
+            )
+            raise ModelException(
+                f"Model chat failed: {e}", {"model_name": self.model_name}
+            )
 
     async def is_healthy(self) -> bool:
         """Check if model is healthy and responsive."""
@@ -126,6 +149,7 @@ class ModelClient:
             async with self.client as client:
                 return await client.is_healthy()
         except Exception:
+            # Health check failures should return False, not raise exceptions
             return False
 
 
@@ -244,16 +268,22 @@ class ModelPool:
                 )
                 return False
 
+        except ModelException:
+            raise  # Re-raise model-specific exceptions
         except Exception as e:
-            self.logger.error(f"Model pool initialization failed: {e}")
+            # Broad catch for unexpected initialization errors
+            self.logger.error(f"Unexpected error during model pool initialization: {e}")
             return False
 
     async def _load_model_safe(self, model_key: str, model: ModelClient) -> bool:
         """Safely load a model with error handling."""
         try:
             return await model.load()
+        except ModelException:
+            raise  # Re-raise model-specific exceptions
         except Exception as e:
-            self.logger.error(f"Error loading model {model_key}: {e}")
+            # Broad catch for unexpected errors during safe model loading
+            self.logger.error(f"Unexpected error loading model {model_key}: {e}")
             return False
 
     def _validate_ux_model_residency(self) -> dict[str, Any]:
@@ -516,7 +546,8 @@ class ModelPool:
         try:
             return psutil.virtual_memory().available // 1024 // 1024
         except Exception as e:
-            self.logger.error(f"Error getting memory info: {e}")
+            # Memory info failures should return 0, not crash system
+            self.logger.error(f"Error getting available memory info: {e}")
             return 0
 
     def get_total_memory(self) -> int:
@@ -528,7 +559,8 @@ class ModelPool:
         try:
             return psutil.virtual_memory().total // 1024 // 1024
         except Exception as e:
-            self.logger.error(f"Error getting memory info: {e}")
+            # Memory info failures should return 0, not crash system
+            self.logger.error(f"Error getting total memory info: {e}")
             return 0
 
     async def health_check(self) -> dict[str, Any]:

@@ -59,8 +59,13 @@ def create_checkpoint(message: str, data: dict[str, Any]) -> str:
 
     except subprocess.CalledProcessError as e:
         raise CheckpointError(f"Git operation failed: {e}")
+    except (OSError, PermissionError) as e:
+        raise CheckpointError(f"File system error during checkpoint: {e}")
+    except json.JSONEncodeError as e:
+        raise CheckpointError(f"JSON encoding error: {e}")
     except Exception as e:
-        raise CheckpointError(f"Checkpoint creation failed: {e}")
+        # Broad catch for unexpected errors during checkpoint creation
+        raise CheckpointError(f"Unexpected error during checkpoint creation: {e}")
 
 
 def save_task_state(task_id: str, state_data: dict[str, Any]) -> str:
@@ -177,7 +182,8 @@ def list_checkpoints() -> list[dict[str, Any]]:
     except subprocess.CalledProcessError as e:
         raise CheckpointError(f"Git operation failed: {e}")
     except Exception as e:
-        raise CheckpointError(f"Failed to list checkpoints: {e}")
+        # Broad catch for unexpected errors during checkpoint listing
+        raise CheckpointError(f"Unexpected error listing checkpoints: {e}")
 
 
 def restore_checkpoint(commit_hash: str) -> dict[str, Any]:
@@ -234,7 +240,8 @@ def restore_checkpoint(commit_hash: str) -> dict[str, Any]:
     except json.JSONDecodeError as e:
         raise CheckpointError(f"Invalid checkpoint data: {e}")
     except Exception as e:
-        raise CheckpointError(f"Failed to restore checkpoint: {e}")
+        # Broad catch for unexpected errors during checkpoint restoration
+        raise CheckpointError(f"Unexpected error restoring checkpoint: {e}")
 
 
 def get_latest_task_state(task_id: str) -> dict[str, Any] | None:
@@ -282,5 +289,8 @@ def get_latest_task_state(task_id: str) -> dict[str, Any] | None:
         latest = task_checkpoints[-1]
         return cast(dict[str, Any], latest["data"]["data"]["state"])
 
+    except CheckpointError:
+        raise  # Re-raise checkpoint-specific exceptions
     except Exception as e:
-        raise CheckpointError(f"Failed to get latest task state: {e}")
+        # Broad catch for unexpected errors during task state retrieval
+        raise CheckpointError(f"Unexpected error getting latest task state: {e}")
