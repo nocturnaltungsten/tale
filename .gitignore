@@ -68,17 +68,14 @@ claude.md
 CLAUDE.md
 .claude/
 roadmap.md
+roadmap*.md
 architecture.md
 implementation-guide.md
-dev-docs/
+
 .serena/
 
 # Local-only dev docs
-docs/roadmap-*.md
-docs/implementation-guide.md
-docs/captains-log.md
-docs/quality-audit-*.md
-docs/problems.md
+docs/dev-local/
 
 # OS
 .DS_Store
@@ -93,7 +90,6 @@ Thumbs.db
 # Project specific
 data/*.db
 checkpoints/
-.skynet/
 node_modules/
 sessions/
 chat_history_*.json
