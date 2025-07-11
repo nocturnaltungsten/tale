@@ -208,7 +208,7 @@ git checkout -b feature/your-feature-name
 ```
 
 ### 2. Code Development
-- Follow the patterns in `docs/implementation-guide.md`
+- Follow the patterns in `docs/dev-local/implementation-guide.md`
 - Reference `docs/architecture.md` for design decisions
 - Use the roadmap files for task guidance
 
@@ -514,8 +514,8 @@ refactor(component): improve code structure
 
 ### Key Documentation
 - `docs/architecture.md`: System design overview
-- `docs/implementation-guide.md`: Coding patterns and standards
-- `docs/roadmap-*.md`: Development roadmap and tasks
+- `docs/dev-local/implementation-guide.md`: Coding patterns and standards
+- `docs/dev-local/roadmap-*.md`: Development roadmap and tasks
 
 ### Getting Help
 - Check existing issues in the repository
