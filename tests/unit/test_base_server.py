@@ -5,7 +5,15 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from src.mcp.base_server import BaseMCPServer, create_example_server
+from src.mcp.base_server import BaseMCPServer
+
+
+class MockMCPServer(BaseMCPServer):
+    """Concrete test implementation of BaseMCPServer."""
+    
+    async def start(self) -> None:
+        """Start the test server."""
+        self._running = True
 
 
 class TestBaseMCPServer:
@@ -13,7 +21,7 @@ class TestBaseMCPServer:
 
     def test_server_lifecycle(self):
         """Test server creation and basic lifecycle."""
-        server = BaseMCPServer("test-server", "1.0.0")
+        server = MockMCPServer("test-server", "1.0.0")
 
         # Test initial state
         assert server.name == "test-server"
@@ -24,7 +32,7 @@ class TestBaseMCPServer:
 
     def test_tool_registration(self):
         """Test tool registration functionality."""
-        server = BaseMCPServer()
+        server = MockMCPServer()
 
         # Test valid tool registration
         def test_tool(arg1: str, arg2: int = 10) -> str:
@@ -38,7 +46,7 @@ class TestBaseMCPServer:
 
     def test_tool_registration_invalid(self):
         """Test tool registration with invalid input."""
-        server = BaseMCPServer()
+        server = MockMCPServer()
 
         # Test non-callable registration
         with pytest.raises(ValueError, match="must be callable"):
@@ -46,7 +54,7 @@ class TestBaseMCPServer:
 
     def test_resource_registration(self):
         """Test resource registration functionality."""
-        server = BaseMCPServer()
+        server = MockMCPServer()
 
         # Test valid resource registration
         def test_resource() -> str:
@@ -60,7 +68,7 @@ class TestBaseMCPServer:
 
     def test_resource_registration_invalid(self):
         """Test resource registration with invalid input."""
-        server = BaseMCPServer()
+        server = MockMCPServer()
 
         # Test non-callable registration
         with pytest.raises(ValueError, match="must be callable"):
@@ -69,7 +77,7 @@ class TestBaseMCPServer:
     @pytest.mark.asyncio
     async def test_tool_call_safely_sync(self):
         """Test safe tool calling with synchronous function."""
-        server = BaseMCPServer()
+        server = MockMCPServer()
 
         def sync_tool(x: int, y: int) -> int:
             return x + y
@@ -80,7 +88,7 @@ class TestBaseMCPServer:
     @pytest.mark.asyncio
     async def test_tool_call_safely_async(self):
         """Test safe tool calling with asynchronous function."""
-        server = BaseMCPServer()
+        server = MockMCPServer()
 
         async def async_tool(message: str) -> str:
             await asyncio.sleep(0.01)  # Simulate async work
@@ -92,7 +100,7 @@ class TestBaseMCPServer:
     @pytest.mark.asyncio
     async def test_tool_call_safely_invalid_args(self):
         """Test safe tool calling with invalid arguments."""
-        server = BaseMCPServer()
+        server = MockMCPServer()
 
         def strict_tool(required_arg: str) -> str:
             return f"Got: {required_arg}"
@@ -107,7 +115,7 @@ class TestBaseMCPServer:
 
     def test_tool_registration_and_retrieval(self):
         """Test tool registration and retrieval functionality."""
-        server = BaseMCPServer()
+        server = MockMCPServer()
 
         # Register test tools
         def tool1():
@@ -130,7 +138,7 @@ class TestBaseMCPServer:
 
     def test_resource_registration_and_retrieval(self):
         """Test resource registration and retrieval functionality."""
-        server = BaseMCPServer()
+        server = MockMCPServer()
 
         # Register test resources
         def resource1():
@@ -154,7 +162,7 @@ class TestBaseMCPServer:
     @pytest.mark.asyncio
     async def test_tool_execution_integration(self):
         """Test tool execution through internal methods."""
-        server = BaseMCPServer()
+        server = MockMCPServer()
 
         # Register test tool
         def add_numbers(a: int, b: int) -> int:
@@ -170,7 +178,7 @@ class TestBaseMCPServer:
     @pytest.mark.asyncio
     async def test_resource_execution_integration(self):
         """Test resource execution through internal methods."""
-        server = BaseMCPServer()
+        server = MockMCPServer()
 
         # Register test resource
         def test_resource():
@@ -186,7 +194,7 @@ class TestBaseMCPServer:
     @pytest.mark.asyncio
     async def test_async_tool_execution(self):
         """Test asynchronous tool execution."""
-        server = BaseMCPServer()
+        server = MockMCPServer()
 
         async def async_tool(message: str) -> str:
             """Async tool function."""
@@ -204,7 +212,7 @@ class TestBaseMCPServer:
     @pytest.mark.asyncio
     async def test_tool_error_handling(self):
         """Test tool error handling."""
-        server = BaseMCPServer()
+        server = MockMCPServer()
 
         def failing_tool():
             """Tool that always fails."""
@@ -219,71 +227,28 @@ class TestBaseMCPServer:
     @pytest.mark.asyncio
     async def test_ping(self):
         """Test ping functionality."""
-        server = BaseMCPServer()
+        server = MockMCPServer()
         result = await server.ping()
         assert result == "pong"
 
-    def test_create_example_server(self):
-        """Test example server creation."""
-        server = create_example_server()
-
-        assert server.name == "tale-example-server"
-        assert server.version == "1.0.0"
-        assert "echo" in server.tools
-        assert "tale://server-info" in server.resources
-
-    @pytest.mark.asyncio
-    async def test_example_server_echo_tool(self):
-        """Test example server echo tool."""
-        server = create_example_server()
-
-        # Test echo tool
-        echo_func = server.tools["echo"]
-        result = await server._call_tool_safely(echo_func, {"message": "test"})
-        assert result == "Echo: test"
-
-    @pytest.mark.asyncio
-    async def test_example_server_info_resource(self):
-        """Test example server info resource."""
-        server = create_example_server()
-
-        # Test server info resource
-        info_func = server.resources["tale://server-info"]
-        result = await server._call_tool_safely(info_func, {})
-        assert "Tale MCP Server v1.0.0" in result
-        assert "Basic implementation" in result
 
     @pytest.mark.asyncio
     async def test_server_start_stop_mocked(self):
-        """Test server start/stop with mocked stdio."""
-        server = BaseMCPServer()
+        """Test server start/stop functionality."""
+        server = MockMCPServer()
 
-        # Mock the stdio_server context manager
-        mock_read_stream = AsyncMock()
-        mock_write_stream = AsyncMock()
+        # Test that server can start and sets running state
+        assert not server.is_running()
+        await server.start()
+        assert server.is_running()
 
-        with patch("mcp.server.stdio.stdio_server") as mock_stdio:
-            mock_stdio.return_value.__aenter__.return_value = (
-                mock_read_stream,
-                mock_write_stream,
-            )
-
-            # Mock the server.run to avoid actual blocking
-            with patch.object(server.server, "run") as mock_run:
-                mock_run.return_value = None
-
-                # Test start
-                await server.start()
-
-                # Verify run was called with correct parameters
-                mock_run.assert_called_once()
-                args = mock_run.call_args[0]
-                assert args[0] == mock_read_stream
-                assert args[1] == mock_write_stream
+        # Test that server can stop
+        await server.stop()
+        assert not server.is_running()
 
     def test_server_start_already_running(self):
         """Test starting server when already running."""
-        server = BaseMCPServer()
+        server = MockMCPServer()
         server._running = True
 
         # Should not raise exception, just log warning
@@ -295,7 +260,7 @@ class TestBaseMCPServer:
 
     def test_server_stop_not_running(self):
         """Test stopping server when not running."""
-        server = BaseMCPServer()
+        server = MockMCPServer()
 
         # Should not raise exception, just log warning
         async def test():
@@ -307,7 +272,7 @@ class TestBaseMCPServer:
     @pytest.mark.asyncio
     async def test_tool_registration_and_call(self):
         """Test tool registration and execution via MCP protocol (task 1.3.a2)."""
-        server = BaseMCPServer()
+        server = MockMCPServer()
 
         # Register echo tool
         def echo_tool(message: str) -> str:
