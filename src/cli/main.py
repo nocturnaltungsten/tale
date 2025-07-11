@@ -4,6 +4,7 @@ import asyncio
 import builtins
 import sys
 import time
+from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
 from typing import Any, cast
@@ -80,7 +81,7 @@ def format_age(timestamp: str) -> str:
         return "unknown"
 
 
-def create_task_table(tasks: list[tuple[Any, ...]]) -> Table:
+def create_task_table(task_list: Sequence[tuple[Any, ...]]) -> Table:
     """Create a rich table for task display."""
     table = Table(title="Tasks")
     table.add_column("ID", style="cyan", width=8)
@@ -89,7 +90,7 @@ def create_task_table(tasks: list[tuple[Any, ...]]) -> Table:
     table.add_column("Age", style="dim", width=10)
     table.add_column("Duration", style="dim", width=10)
 
-    for task in tasks:
+    for task in task_list:
         # Truncate ID for display
         short_id = task[0][:8] if task[0] else "unknown"
 
