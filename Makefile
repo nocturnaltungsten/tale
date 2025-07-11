@@ -38,16 +38,16 @@ check: lint test ## Run both linting and tests
 ci: clean format check ## Full CI pipeline (clean, format, check)
 
 quick-test: ## Run tests without coverage for speed
-	@python -m pytest tests/ -x --tb=short
+	@python3 -m pytest tests/ -x --tb=short
 
 type-check: ## Run only type checking
-	@mypy src/tale
+	@mypy src/
 
 unit-tests: ## Run only unit tests
-	@python -m pytest tests/unit/ -v
+	@python3 -m pytest tests/unit/ -v
 
 integration-tests: ## Run only integration tests
-	@python -m pytest tests/integration/ -v
+	@python3 -m pytest tests/integration/ -v
 
 watch-tests: ## Run tests in watch mode (requires pytest-watch)
 	@ptw tests/ src/

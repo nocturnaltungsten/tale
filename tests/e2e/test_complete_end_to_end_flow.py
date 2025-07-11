@@ -35,7 +35,9 @@ class TestCompleteEndToEndFlow:
     @pytest.fixture
     def mock_model_client(self):
         """Mock the SimpleOllamaClient for testing."""
-        with patch("tale.servers.execution_server.SimpleOllamaClient") as mock_client:
+        with patch(
+            "src.servers.execution_server_http.SimpleOllamaClient"
+        ) as mock_client:
             # Create a mock instance
             instance = MagicMock()
             instance.generate = AsyncMock(

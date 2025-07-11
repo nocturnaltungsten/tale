@@ -12,7 +12,7 @@ packages = ["src"]
 name = "tale"
 version = "0.1.0"
 description = "Skynet-Lite: Lean Autonomous Agent Architecture"
-readme = "README.md"
+readme = "docs/README.md"
 requires-python = ">=3.10"
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -63,22 +63,17 @@ dev = [
     "black>=23.0.0",
     "ruff>=0.1.0",
     "mypy>=1.5.0",
-    "pre-commit>=3.0.0",
+    "pre-commit>=4.2.0",
     "coverage>=7.0.0",
     "types-requests>=2.31.0",
     "types-psutil>=6.0.0",
     "bandit[toml]>=1.7.0",
-    "pip-audit>=2.6.0",
+    "pip-audit>=2.9.0",
 ]
 
 [project.scripts]
 tale = "src.cli.main:main"
 
-[dependency-groups]
-dev = [
-    "pip-audit>=2.9.0",
-    "pre-commit>=4.2.0",
-]
 
 [tool.black]
 line-length = 88

@@ -7,7 +7,14 @@ echo "🔍 Running code quality checks..."
 # Check if virtual environment is activated
 if [[ "$VIRTUAL_ENV" == "" ]]; then
     echo "⚠️  Virtual environment not activated. Activating..."
-    source .venv/bin/activate
+    if [ -d ".venv" ]; then
+        source .venv/bin/activate
+    elif [ -d "venv" ]; then
+        source venv/bin/activate
+    else
+        echo "❌ No virtual environment found"
+        exit 1
+    fi
 fi
 
 # Run ruff linting
@@ -20,7 +27,7 @@ black --check --diff src/ tests/
 
 # Run mypy type checking
 echo "🔍 Running type checks..."
-mypy src/tale
+mypy src/
 
 # Check imports
 echo "📦 Checking import organization..."

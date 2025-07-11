@@ -83,7 +83,7 @@ uv pip install -e ".[dev]"
 #### Alternative Installation
 If you prefer traditional pip:
 ```bash
-pip install -r requirements-dev.txt
+pip install -e ".[dev]"
 ```
 
 ### 4. Pre-commit Hooks

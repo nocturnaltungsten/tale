@@ -61,7 +61,7 @@ def create_checkpoint(message: str, data: dict[str, Any]) -> str:
         raise CheckpointError(f"Git operation failed: {e}")
     except (OSError, PermissionError) as e:
         raise CheckpointError(f"File system error during checkpoint: {e}")
-    except json.JSONEncodeError as e:
+    except json.JSONDecodeError as e:
         raise CheckpointError(f"JSON encoding error: {e}")
     except Exception as e:
         # Broad catch for unexpected errors during checkpoint creation
