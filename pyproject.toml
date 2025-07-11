@@ -77,6 +77,7 @@ tale = "src.cli.main:main"
 [dependency-groups]
 dev = [
     "pip-audit>=2.9.0",
+    "pre-commit>=4.2.0",
 ]
 
 [tool.black]
