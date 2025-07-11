@@ -84,7 +84,14 @@ class HTTPMCPClient:
             ) as response:
                 if response.status != 200:
                     text = await response.text()
-                    raise Exception(f"Server error: {response.status} - {text}")
+                    raise NetworkException(
+                        f"Server error: {response.status} - {text}",
+                        {
+                            "base_url": self.base_url,
+                            "method": "tools/list",
+                            "status": response.status,
+                        },
+                    )
 
                 result = await response.json()
                 tools_data = result.get("tools", [])
@@ -126,13 +133,29 @@ class HTTPMCPClient:
             ) as response:
                 if response.status != 200:
                     text = await response.text()
-                    raise Exception(f"Server error: {response.status} - {text}")
+                    raise NetworkException(
+                        f"Server error: {response.status} - {text}",
+                        {
+                            "base_url": self.base_url,
+                            "method": "tools/call",
+                            "tool_name": name,
+                            "status": response.status,
+                        },
+                    )
 
                 result = await response.json()
 
                 # Check for error in response
                 if "error" in result:
-                    raise Exception(f"Server error: {result['error']}")
+                    raise NetworkException(
+                        f"Server error: {result['error']}",
+                        {
+                            "base_url": self.base_url,
+                            "method": "tools/call",
+                            "tool_name": name,
+                            "server_error": result["error"],
+                        },
+                    )
 
                 # Extract content from MCP response format
                 if "content" in result and len(result["content"]) > 0:
@@ -176,7 +199,16 @@ class HTTPMCPClient:
             ) as response:
                 if response.status != 200:
                     text = await response.text()
-                    raise Exception(f"Server error: {response.status} - {text}")
+                    raise NetworkException(
+                        f"Server error: {response.status} - {text}",
+                        {
+                            "base_url": self.base_url,
+                            "method": "tools/call",
+                            "tool_name": name,
+                            "transport": "SSE",
+                            "status": response.status,
+                        },
+                    )
 
                 # Read SSE response
                 async for line_bytes in response.content:
@@ -185,7 +217,16 @@ class HTTPMCPClient:
                         data = json.loads(line[6:])
 
                         if "error" in data:
-                            raise Exception(f"Server error: {data['error']}")
+                            raise NetworkException(
+                                f"Server error: {data['error']}",
+                                {
+                                    "base_url": self.base_url,
+                                    "method": "tools/call",
+                                    "tool_name": name,
+                                    "transport": "SSE",
+                                    "server_error": data["error"],
+                                },
+                            )
 
                         # Extract content from MCP response format
                         if "content" in data and len(data["content"]) > 0:

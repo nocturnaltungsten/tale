@@ -9,6 +9,7 @@ import logging
 import subprocess
 from typing import Any, cast
 
+from ..exceptions import ModelException
 from .ollama_client import OllamaClient, OllamaClientError
 
 logger = logging.getLogger(__name__)
@@ -109,11 +110,22 @@ class SimpleOllamaClient:
             load_time = time.time() - start_time
 
             if result.returncode != 0:
-                raise Exception(f"ollama run failed: {result.stderr}")
+                raise ModelException(
+                    "Model loading command failed",
+                    {
+                        "model_name": model_name,
+                        "command": "ollama run",
+                        "stderr": result.stderr,
+                        "returncode": result.returncode,
+                    },
+                )
 
             # Verify model is now loaded
             if not self._check_model_loaded(model_name):
-                raise Exception(f"Model {model_name} failed to load into VRAM")
+                raise ModelException(
+                    "Model failed to load into VRAM",
+                    {"model_name": model_name, "load_time": load_time},
+                )
 
             self.logger.info(
                 f"Model {model_name} loaded successfully in {load_time:.2f}s"
@@ -122,10 +134,24 @@ class SimpleOllamaClient:
 
         except subprocess.TimeoutExpired:
             load_time = time.time() - start_time
-            raise Exception(f"Model loading timed out after {load_time:.2f}s")
+            raise ModelException(
+                "Model loading timed out",
+                {
+                    "model_name": model_name,
+                    "timeout_seconds": 30,
+                    "load_time": load_time,
+                },
+            )
         except Exception as e:
             load_time = time.time() - start_time
-            raise Exception(f"Model loading failed after {load_time:.2f}s: {e}")
+            raise ModelException(
+                "Model loading failed",
+                {
+                    "model_name": model_name,
+                    "load_time": load_time,
+                    "original_error": str(e),
+                },
+            )
 
     async def __aenter__(self) -> "SimpleOllamaClient":
         """Async context manager entry."""
