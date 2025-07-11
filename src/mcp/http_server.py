@@ -6,7 +6,7 @@ import json
 import logging
 import time
 from collections.abc import Callable
-from typing import Any, Dict, Union, get_type_hints
+from typing import Any, Union, get_type_hints
 
 from aiohttp import web
 

@@ -4,7 +4,7 @@ import argparse
 import asyncio
 import logging
 import subprocess
-from typing import Any, Optional, List
+from typing import Any
 
 from ..constants import CLAUDE_CODE_PORT
 from ..mcp.http_server import HTTPMCPServer
@@ -57,7 +57,7 @@ class ClaudeCodeServer(HTTPMCPServer):
         self.register_tool("get_claude_code_info", self._get_claude_code_info)
 
     async def _generate_code(
-        self, prompt: str, language: str = "python", framework: Optional[str] = None
+        self, prompt: str, language: str = "python", framework: str | None = None
     ) -> str:
         """Generate code using Claude Code capabilities.
 
@@ -147,7 +147,7 @@ class ClaudeCodeServer(HTTPMCPServer):
             return f"Error executing Claude Code analysis: {str(e)}"
 
     async def _scaffold_project(
-        self, project_type: str, project_name: str, features: Optional[List[str]] = None
+        self, project_type: str, project_name: str, features: list[str] | None = None
     ) -> str:
         """Scaffold a new project using Claude Code.
 
@@ -227,7 +227,7 @@ class ClaudeCodeServer(HTTPMCPServer):
         }
 
     def _fallback_code_generation(
-        self, prompt: str, language: str, framework: Optional[str]
+        self, prompt: str, language: str, framework: str | None
     ) -> str:
         """Fallback code generation when Claude Code CLI is not available."""
         return f"""# Generated using fallback method (Claude Code CLI not available)
@@ -277,7 +277,7 @@ pip install claude-code
 """
 
     def _fallback_project_scaffold(
-        self, project_type: str, project_name: str, features: Optional[List[str]]
+        self, project_type: str, project_name: str, features: list[str] | None
     ) -> str:
         """Fallback project scaffolding when Claude Code CLI is not available."""
         return f"""# Project Scaffolding (Fallback Mode)

@@ -1,11 +1,12 @@
 """Main CLI entry point for tale."""
 
 import asyncio
+import builtins
 import sys
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union, cast
+from typing import Any, cast
 
 import click
 from rich.console import Console
@@ -25,7 +26,7 @@ console = Console()
 _coordinator = None
 
 
-def format_duration(created_at: str, updated_at: Optional[str] = None) -> str:
+def format_duration(created_at: str, updated_at: str | None = None) -> str:
     """Format duration from creation time."""
     try:
         # Parse the timestamp
@@ -79,7 +80,7 @@ def format_age(timestamp: str) -> str:
         return "unknown"
 
 
-def create_task_table(tasks: List[Tuple[Any, ...]]) -> Table:
+def create_task_table(tasks: list[tuple[Any, ...]]) -> Table:
     """Create a rich table for task display."""
     table = Table(title="Tasks")
     table.add_column("ID", style="cyan", width=8)
@@ -777,7 +778,7 @@ def tasks(watch: bool) -> None:
             )
             return
 
-        def get_tasks() -> List[Tuple[Any, ...]]:
+        def get_tasks() -> builtins.list[tuple[Any, ...]]:
             """Get tasks from database."""
             db = Database(str(db_path))
             with db.get_connection() as conn:
@@ -792,7 +793,7 @@ def tasks(watch: bool) -> None:
 
         if watch:
             # Live updating display
-            def generate_display() -> Union[Panel, Table]:
+            def generate_display() -> Panel | Table:
                 tasks = get_tasks()
                 if not tasks:
                     return Panel(
@@ -870,7 +871,9 @@ def list() -> None:
         console.print(Panel(f"[red]Error listing tasks: {e}[/red]", title="Error"))
 
 
-async def _handle_chat_command(command: str, console: Console, project_root: Path) -> Optional[str]:
+async def _handle_chat_command(
+    command: str, console: Console, project_root: Path
+) -> str | None:
     """Handle in-chat commands like /tasks, /status, /help, /clear."""
 
     parts = command.strip().split()
@@ -1033,7 +1036,7 @@ async def _handle_chat_command(command: str, console: Console, project_root: Pat
                 title="Error",
             )
         )
-    
+
     return None
 
 
@@ -1202,9 +1205,11 @@ def chat(exit: bool, dev: bool) -> None:
                                             confidence_color = (
                                                 "green"
                                                 if response["confidence"] > 0.7
-                                                else "yellow"
-                                                if response["confidence"] > 0.4
-                                                else "red"
+                                                else (
+                                                    "yellow"
+                                                    if response["confidence"] > 0.4
+                                                    else "red"
+                                                )
                                             )
                                             metadata_branch.add(
                                                 f"Confidence: [{confidence_color}]{response['confidence']:.2f}[/{confidence_color}]"
@@ -1406,15 +1411,22 @@ def chat(exit: bool, dev: bool) -> None:
                             assistant_messages = [
                                 msg
                                 for msg in conversation_history
-                                if isinstance(msg, dict) and msg.get("role") == "assistant"
+                                if isinstance(msg, dict)
+                                and msg.get("role") == "assistant"
                             ]
                             if assistant_messages:
                                 response_times = [
-                                    float(cast(Dict[str, Any], msg).get("response_time", 0))
+                                    float(
+                                        cast(dict[str, Any], msg).get(
+                                            "response_time", 0
+                                        )
+                                    )
                                     for msg in assistant_messages
                                     if isinstance(msg, dict)
                                 ]
-                                avg_response_time = sum(response_times) / len(assistant_messages)
+                                avg_response_time = sum(response_times) / len(
+                                    assistant_messages
+                                )
 
                                 console.print(
                                     f"\n[dim]Conversation summary: {len(conversation_history)//2} exchanges, "
@@ -1456,23 +1468,32 @@ def chat(exit: bool, dev: bool) -> None:
                             "conversation": conversation_history,
                             "summary": {
                                 "total_exchanges": len(conversation_history) // 2,
-                                "avg_response_time": sum(
-                                    float(cast(Dict[str, Any], msg).get("response_time", 0))
-                                    for msg in conversation_history
-                                    if isinstance(msg, dict) and msg.get("role") == "assistant"
-                                )
-                                / len(
-                                    [
-                                        msg
+                                "avg_response_time": (
+                                    sum(
+                                        float(
+                                            cast(dict[str, Any], msg).get(
+                                                "response_time", 0
+                                            )
+                                        )
                                         for msg in conversation_history
-                                        if isinstance(msg, dict) and msg.get("role") == "assistant"
-                                    ]
-                                )
-                                if any(
-                                    isinstance(msg, dict) and msg.get("role") == "assistant"
-                                    for msg in conversation_history
-                                )
-                                else 0,
+                                        if isinstance(msg, dict)
+                                        and msg.get("role") == "assistant"
+                                    )
+                                    / len(
+                                        [
+                                            msg
+                                            for msg in conversation_history
+                                            if isinstance(msg, dict)
+                                            and msg.get("role") == "assistant"
+                                        ]
+                                    )
+                                    if any(
+                                        isinstance(msg, dict)
+                                        and msg.get("role") == "assistant"
+                                        for msg in conversation_history
+                                    )
+                                    else 0
+                                ),
                             },
                         }
 

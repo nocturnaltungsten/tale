@@ -1,7 +1,7 @@
 # Makefile for tale development
 # Alternative to using shell scripts directly
 
-.PHONY: help setup test lint format clean benchmark install dev-install
+.PHONY: help setup test lint format clean benchmark install dev-install hooks hooks-test hooks-status
 
 help: ## Show this help message
 	@echo "Tale Development Commands:"
@@ -59,8 +59,18 @@ docs-serve: ## Serve documentation locally (when implemented)
 docs-build: ## Build documentation (when implemented)
 	@echo "Documentation building not yet implemented"
 
-# Development utility targets
-install-hooks: ## Install git pre-commit hooks
+# Development utility targets  
+hooks: ## Install and configure git hooks (pre-commit + pre-push)
+	@./scripts/setup-hooks.sh install
+
+hooks-test: ## Test git hooks without committing/pushing
+	@./scripts/setup-hooks.sh test
+
+hooks-status: ## Show git hooks status and dependencies
+	@./scripts/setup-hooks.sh status
+
+install-hooks: ## Install git pre-commit hooks (legacy - use 'hooks' instead)
+	@echo "⚠️  Use 'make hooks' for comprehensive hook setup"
 	@pre-commit install
 
 update-deps: ## Update all dependencies

@@ -86,10 +86,12 @@ target-version = ['py310']
 [tool.ruff]
 line-length = 88
 target-version = "py310"
+
+[tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP"]
 ignore = ["E501", "N818"]  # Line too long (handled by black), Exception naming (TaleBaseException required)
 
-[tool.ruff.isort]
+[tool.ruff.lint.isort]
 known-first-party = ["cli", "mcp", "models", "orchestration", "servers", "storage"]
 
 [tool.mypy]

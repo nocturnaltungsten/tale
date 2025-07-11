@@ -73,3 +73,6 @@ data/*.db
 checkpoints/
 .skynet/
 node_modules/
+sessions/
+chat_history_*.json
+archive/

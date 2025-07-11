@@ -7,9 +7,10 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable
 from typing import Any
 
+from pydantic import AnyUrl
+
 import mcp.types as types
 from mcp.server import Server
-from pydantic import AnyUrl
 
 # Configure logging to stderr (not stdout!)
 logging.basicConfig(
@@ -143,7 +144,9 @@ class BaseMCPServer(ABC):
                 logger.error(error_msg, exc_info=True)
                 raise RuntimeError(error_msg) from e
 
-    async def _call_tool_safely(self, func: Callable[..., Any], arguments: dict[str, Any]) -> Any:
+    async def _call_tool_safely(
+        self, func: Callable[..., Any], arguments: dict[str, Any]
+    ) -> Any:
         """Safely call a tool function with error handling."""
         try:
             # Check if function is async

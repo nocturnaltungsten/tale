@@ -8,7 +8,7 @@ performance targets and enable responsive user interaction.
 import asyncio
 import logging
 import time
-from typing import Any, cast
+from typing import Any
 
 import psutil
 
@@ -554,7 +554,10 @@ class ModelPool:
         }
 
         # Calculate memory usage percentage
-        if isinstance(health_data["memory"], dict) and health_data["memory"]["total_mb"] > 0:
+        if (
+            isinstance(health_data["memory"], dict)
+            and health_data["memory"]["total_mb"] > 0
+        ):
             used_mb = (
                 health_data["memory"]["total_mb"]
                 - health_data["memory"]["available_mb"]

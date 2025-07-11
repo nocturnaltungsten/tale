@@ -4,7 +4,7 @@ import argparse
 import asyncio
 import logging
 import time
-from typing import Any, Dict, cast
+from typing import Any, cast
 
 from ..constants import GATEWAY_PORT
 from ..mcp.http_client import HTTPMCPClient
@@ -17,7 +17,9 @@ logger = logging.getLogger(__name__)
 class ConversationTurn:
     """Represents a single conversation turn."""
 
-    def __init__(self, user_input: str, response: str, task_id: str | None = None) -> None:
+    def __init__(
+        self, user_input: str, response: str, task_id: str | None = None
+    ) -> None:
         self.timestamp = time.time()
         self.user_input = user_input
         self.response = response
@@ -34,7 +36,9 @@ class ConversationState:
         self.user_preferences: dict[str, Any] = {}
         self.session_start = time.time()
 
-    def add_turn(self, user_input: str, response: str, task_id: str | None = None) -> None:
+    def add_turn(
+        self, user_input: str, response: str, task_id: str | None = None
+    ) -> None:
         """Add conversation turn with optional task reference."""
         turn = ConversationTurn(user_input, response, task_id)
         self.history.append(turn)
@@ -284,7 +288,7 @@ Assistant:"""
                 "timestamp": time.time(),
             }
 
-    def _generate_progress_message(self, status: str, result: Dict[str, Any]) -> str:
+    def _generate_progress_message(self, status: str, result: dict[str, Any]) -> str:
         """Generate natural language progress message.
 
         Args:
@@ -320,7 +324,9 @@ Assistant:"""
         confidence = min(keyword_matches * 0.3, 0.8)
         return keyword_matches > 0, confidence
 
-    async def _analyze_task_intent(self, message: str, ux_model: Any) -> tuple[bool, float]:
+    async def _analyze_task_intent(
+        self, message: str, ux_model: Any
+    ) -> tuple[bool, float]:
         """Analyze user intent for task detection using UX model.
 
         Args:
