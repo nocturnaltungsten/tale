@@ -49,6 +49,8 @@ logs/
 .coverage
 htmlcov/
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
 # Audit Reports
 audit-report.json
