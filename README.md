@@ -20,17 +20,17 @@ tale is an experimental autonomous agent architecture designed to handle complex
 **Key Features:**
 - Dual-model strategy (lightweight UX + powerful execution)
 - MCP-first communication protocol
-- Hierarchical agent coordination
-- Token budget optimization
-- Git-based checkpointing
-- SQLite-based persistence
+- Hierarchical agent coordination (UX → Gateway → Execution)
+- Token budget optimization and learning
+- Git-based checkpointing for long-running tasks
+- SQLite-based persistence and task storage
 
 ## Architecture
 
 ```
 ┌─────────────────────────────────────────┐
 │            User Interface               │
-│      (CLI/TUI + Future Voice)           │
+│         (CLI/TUI Interface)             │
 └────────────────┬────────────────────────┘
                  │
 ┌────────────────▼────────────────────────┐
@@ -43,13 +43,18 @@ tale is an experimental autonomous agent architecture designed to handle complex
 │   (Router + Orchestrator + Memory)      │
 └────────────────┬────────────────────────┘
                  │
-        ┌────────┴────────┐
-        │                 │
-┌───────▼────────┐ ┌──────▼──────────────┐
-│ Execution      │ │ Learning MCP Server │
-│ MCP Server     │ │ (Metrics + Models)  │
-│ (Multi-Model)  │ └─────────────────────┘
-└────────────────┘
+┌────────────────▼────────────────────────┐
+│        Execution MCP Server             │
+│    (Task execution + Model access)      │
+└────────────────┬────────────────────────┘
+                 │
+┌────────────────▼────────────────────────┐
+│         Model Pool                      │
+│  ┌─────────┐ ┌──────────┐ ┌─────────┐   │
+│  │UX Model │ │Reasoning │ │  Cloud  │   │
+│  │(Phi-3)  │ │(Qwen-14B)│ │Failover │   │
+│  └─────────┘ └──────────┘ └─────────┘   │
+└─────────────────────────────────────────┘
 ```
 
 ## Quick Start
@@ -80,14 +85,14 @@ pytest tests/
 ### Start the System
 
 ```bash
-# Start all servers
-tale servers start
+# Start the HTTP coordinator with all servers
+python -m src.orchestration.coordinator_http
 
-# Open interactive chat
-tale chat
+# In another terminal, use the CLI
+python -m src.cli.main --help
 
-# Submit a task
-tale submit "Your task description here"
+# Submit a task (when system is running)
+python -m src.cli.main submit "Your task description here"
 ```
 
 ## Installation
@@ -120,20 +125,20 @@ pip install tale
 ### Command Line Interface
 
 ```bash
-# Start the system
-tale start
+# Start the coordinator (all servers)
+python -m src.orchestration.coordinator_http
 
-# Interactive chat mode
-tale chat
+# Use the CLI (in another terminal)
+python -m src.cli.main --help
 
 # Submit tasks
-tale submit "Create a simple web server"
+python -m src.cli.main submit "Create a simple web server"
 
 # Check system status
-tale status
+python -m src.cli.main status
 
 # View help
-tale --help
+python -m src.cli.main --help
 ```
 
 ### Configuration

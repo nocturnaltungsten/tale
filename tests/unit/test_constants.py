@@ -3,7 +3,6 @@
 import pytest
 
 from src.constants import (
-    CLAUDE_CODE_PORT,
     CLI_INIT_DELAY,
     DEFAULT_HTTP_TIMEOUT,
     ERROR_RETRY_DELAY,
@@ -35,15 +34,12 @@ class TestConstants:
         assert isinstance(GATEWAY_PORT, int)
         assert isinstance(EXECUTION_PORT, int)
         assert isinstance(UX_AGENT_PORT, int)
-        assert isinstance(CLAUDE_CODE_PORT, int)
         assert GATEWAY_PORT == 8080
         assert EXECUTION_PORT == 8081
         assert UX_AGENT_PORT == 8082
-        assert CLAUDE_CODE_PORT == 8083
         assert 1024 <= GATEWAY_PORT <= 65535
         assert 1024 <= EXECUTION_PORT <= 65535
         assert 1024 <= UX_AGENT_PORT <= 65535
-        assert 1024 <= CLAUDE_CODE_PORT <= 65535
 
     def test_timeout_constants(self):
         """Test timeout related constants."""
@@ -99,7 +95,6 @@ class TestConstants:
             "GATEWAY_PORT",
             "EXECUTION_PORT",
             "UX_AGENT_PORT",
-            "CLAUDE_CODE_PORT",
             "TASK_EXECUTION_TIMEOUT",
             "POLLING_INTERVAL",
             "SERVER_START_DELAY",
@@ -125,7 +120,6 @@ class TestConstants:
             GATEWAY_PORT,
             EXECUTION_PORT,
             UX_AGENT_PORT,
-            CLAUDE_CODE_PORT,
             TASK_EXECUTION_TIMEOUT,
             POLLING_INTERVAL,
             SERVER_START_DELAY,
@@ -153,5 +147,5 @@ class TestConstants:
         ]
 
         assert (
-            len(constant_names) == 14
-        ), f"Expected 14 constants, found {len(constant_names)}: {constant_names}"
+            len(constant_names) == 13
+        ), f"Expected 13 constants, found {len(constant_names)}: {constant_names}"

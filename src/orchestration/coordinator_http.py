@@ -6,10 +6,9 @@ import logging
 import time
 from typing import Any, cast
 
-from ..constants import CLAUDE_CODE_PORT, EXECUTION_PORT, GATEWAY_PORT, UX_AGENT_PORT
+from ..constants import EXECUTION_PORT, GATEWAY_PORT, UX_AGENT_PORT
 from ..exceptions import NetworkException, TaskException
 from ..mcp.http_client import HTTPMCPClient
-from ..servers.claude_code_server import ClaudeCodeServer
 from ..servers.execution_server_http import HTTPExecutionServer
 from ..servers.gateway_server_http import HTTPGatewayServer
 from ..servers.ux_agent_server import HTTPUXAgentServer
@@ -41,18 +40,15 @@ class HTTPCoordinator:
         self.gateway_server: HTTPGatewayServer | None = None
         self.execution_server: HTTPExecutionServer | None = None
         self.ux_agent_server: HTTPUXAgentServer | None = None
-        self.claude_code_server: ClaudeCodeServer | None = None
 
         # Server URLs
         self.gateway_url = f"http://localhost:{GATEWAY_PORT}"
         self.execution_url = f"http://localhost:{EXECUTION_PORT}"
         self.ux_agent_url = f"http://localhost:{UX_AGENT_PORT}"
-        self.claude_code_url = f"http://localhost:{CLAUDE_CODE_PORT}"
 
         # MCP clients
         self.gateway_client: HTTPMCPClient | None = None
         self.execution_client: HTTPMCPClient | None = None
-        self.claude_code_client: HTTPMCPClient | None = None
 
         # Task tracking
         self.active_tasks: dict[str, dict[str, Any]] = {}
@@ -83,8 +79,6 @@ class HTTPCoordinator:
             await self.gateway_client.close()
         if self.execution_client:
             await self.execution_client.close()
-        if self.claude_code_client:
-            await self.claude_code_client.close()
 
         # Stop servers
         if self.gateway_server:
@@ -93,8 +87,6 @@ class HTTPCoordinator:
             await self.execution_server.stop()
         if self.ux_agent_server:
             await self.ux_agent_server.stop()
-        if self.claude_code_server:
-            await self.claude_code_server.stop()
 
         logger.info("HTTP coordinator stopped")
 
@@ -126,14 +118,6 @@ class HTTPCoordinator:
         # Give it time to fully start
         await asyncio.sleep(1)
 
-        # Start Claude Code server
-        self.claude_code_server = ClaudeCodeServer(port=CLAUDE_CODE_PORT)
-        await self.claude_code_server.start()
-        logger.info(f"Started Claude Code server on port {CLAUDE_CODE_PORT}")
-
-        # Give it time to fully start
-        await asyncio.sleep(1)
-
     async def init_clients(self) -> None:
         """Initialize MCP clients for server communication."""
         self.gateway_client = HTTPMCPClient(self.gateway_url)
@@ -141,9 +125,6 @@ class HTTPCoordinator:
 
         self.execution_client = HTTPMCPClient(self.execution_url)
         await self.execution_client.connect()
-
-        self.claude_code_client = HTTPMCPClient(self.claude_code_url)
-        await self.claude_code_client.connect()
 
         logger.info("MCP clients connected to servers")
 
@@ -288,10 +269,6 @@ class HTTPCoordinator:
             "ux_agent": {
                 "running": self.ux_agent_server is not None,
                 "url": self.ux_agent_url,
-            },
-            "claude_code": {
-                "running": self.claude_code_server is not None,
-                "url": self.claude_code_url,
             },
         }
 
