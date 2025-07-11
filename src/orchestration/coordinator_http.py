@@ -7,6 +7,7 @@ import time
 from typing import Any, cast
 
 from ..constants import CLAUDE_CODE_PORT, EXECUTION_PORT, GATEWAY_PORT, UX_AGENT_PORT
+from ..exceptions import NetworkException, TaskException
 from ..mcp.http_client import HTTPMCPClient
 from ..servers.claude_code_server import ClaudeCodeServer
 from ..servers.execution_server_http import HTTPExecutionServer
@@ -172,20 +173,31 @@ class HTTPCoordinator:
                 # If JSON parsing fails, the result might be a string representation
                 # This is a fallback for malformed responses
                 logger.error(f"Failed to parse result as JSON: {result}")
-                raise Exception(f"Invalid response format from gateway: {result}")
+                raise NetworkException(
+                    f"Invalid response format from gateway: {result}",
+                    {"response": result, "expected": "json"},
+                )
 
         # Ensure result is a dict at this point
         if not isinstance(result, dict):
-            raise Exception(f"Expected dict response, got {type(result)}: {result}")
+            raise NetworkException(
+                f"Expected dict response, got {type(result)}: {result}",
+                {"response_type": type(result).__name__, "response": str(result)},
+            )
 
         # Check for error in response
         if result.get("status") == "error":
             error_msg = result.get("message", "Unknown error")
-            raise Exception(f"Gateway error: {error_msg}")
+            raise TaskException(
+                f"Gateway error: {error_msg}",
+                {"status": result.get("status"), "error_message": error_msg},
+            )
 
         task_id = result.get("task_id")
         if not task_id:
-            raise Exception("Failed to create task: no task_id in response")
+            raise TaskException(
+                "Failed to create task: no task_id in response", {"response": result}
+            )
 
         return cast(str, task_id)
 

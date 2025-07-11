@@ -16,6 +16,7 @@ from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
+from src.exceptions import ServerException
 from src.mcp.http_client import HTTPMCPClient
 from src.orchestration.coordinator_http import HTTPCoordinator
 from src.storage.database import Database
@@ -561,7 +562,7 @@ async def submit_task_via_gateway(task_text: str) -> str:
 
     global _coordinator
     if not _coordinator:
-        raise Exception("HTTP coordinator not started")
+        raise ServerException("HTTP coordinator not started")
 
     # Use the HTTP coordinator's submit_task method
     task_id = await _coordinator.submit_task(task_text)

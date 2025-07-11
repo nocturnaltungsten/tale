@@ -6,6 +6,7 @@ import time
 from typing import Any
 
 from ..constants import EXECUTION_PORT
+from ..exceptions import ModelException, TaskException
 from ..mcp.http_server import HTTPMCPServer
 from ..models.model_pool import ModelPool
 from ..models.simple_client import SimpleOllamaClient
@@ -99,7 +100,13 @@ class HTTPExecutionServer(HTTPMCPServer):
                 async with self.client:
                     # Ensure model is healthy
                     if not await self.client.is_healthy():
-                        raise Exception("Ollama server is not healthy")
+                        raise ModelException(
+                            "Ollama server is not healthy",
+                            {
+                                "server_status": "unhealthy",
+                                "model_name": self.model_name,
+                            },
+                        )
 
                     # Generate response with timeout
                     try:
@@ -109,7 +116,14 @@ class HTTPExecutionServer(HTTPMCPServer):
                         )
                         logger.info("Task executed with fallback single model")
                     except asyncio.TimeoutError:
-                        raise Exception("Task execution timed out after 5 minutes")
+                        raise TaskException(
+                            "Task execution timed out after 5 minutes",
+                            {
+                                "task_id": task_id,
+                                "timeout": "300s",
+                                "model_name": self.model_name,
+                            },
+                        )
 
             # Update task status to completed
             self.task_store.update_task_status(task_id, "completed")
