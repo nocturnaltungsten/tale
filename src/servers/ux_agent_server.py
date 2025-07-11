@@ -449,7 +449,7 @@ async def main() -> None:
     finally:
         try:
             if server.model_pool_initialized:
-                await server.model_pool.shutdown()  # type: ignore
+                await server.model_pool.shutdown()
             await server.gateway_client.close()
             await server.stop()
         except Exception as e:

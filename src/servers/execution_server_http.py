@@ -213,7 +213,7 @@ Response:"""
     async def stop(self) -> None:
         """Stop the server and cleanup model pool."""
         if self.model_pool_initialized:
-            await self.model_pool.shutdown()  # type: ignore
+            await self.model_pool.shutdown()
         await super().stop()
 
 
