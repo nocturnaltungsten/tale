@@ -15,7 +15,7 @@ This approach balances development velocity with quality enforcement.
 
 **Purpose**: Catch issues early but don't block development flow
 
-**Behavior**: 
+**Behavior**:
 - ⚠️ Shows warnings for quality issues
 - ✅ Always allows commits to proceed
 - 🎯 Encourages fixes but doesn't enforce them
@@ -24,12 +24,12 @@ This approach balances development velocity with quality enforcement.
 
 #### 1. Code Quality Gates
 - **Black formatting**: Code style consistency
-- **Ruff linting**: Code quality and import organization  
+- **Ruff linting**: Code quality and import organization
 - **Test execution**: Runs test suite with short output
 - **Type checking**: MyPy static type analysis
 - **Coverage checking**: Ensures ≥85% test coverage
 
-#### 2. Documentation Gates  
+#### 2. Documentation Gates
 - **Docstring check**: Validates public functions have docstrings
 - **Type hint validation**: Ensures public APIs are typed
 
@@ -62,7 +62,7 @@ Location: `.pre-commit-config.yaml`
 
 #### 1. Security Gates (BLOCKING)
 - **Bandit security scan**: High/medium severity issues block push
-- **Secret detection**: Prevents credentials from being committed  
+- **Secret detection**: Prevents credentials from being committed
 - **Dependency vulnerabilities**: High/critical CVEs block push
 
 #### 2. Architecture Compliance (BLOCKING)
@@ -146,7 +146,7 @@ BYPASS_HOOKS=true git push origin main
 
 **Never bypass for:**
 - ❌ Convenience or time pressure
-- ❌ "Just this once" mentality  
+- ❌ "Just this once" mentality
 - ❌ Avoiding fixing actual issues
 - ❌ Regular development workflow
 
@@ -249,7 +249,7 @@ pip install pre-commit
 make hooks
 ```
 
-**"bandit not found"**  
+**"bandit not found"**
 ```bash
 pip install bandit[toml]
 ```
@@ -267,7 +267,7 @@ pip install bandit[toml]
 ### Getting Help
 
 1. Check hook status: `make hooks-status`
-2. Test hooks: `make hooks-test`  
+2. Test hooks: `make hooks-test`
 3. Review logs in hook output
 4. Check tool documentation for specific errors
 5. Consider bypass for urgent issues, fix afterward
@@ -277,7 +277,7 @@ pip install bandit[toml]
 **Git hooks are not security boundaries** - they can be bypassed. The real security comes from:
 
 1. **Code review process**: Human verification of changes
-2. **CI/CD pipeline**: Automated verification on trusted infrastructure  
+2. **CI/CD pipeline**: Automated verification on trusted infrastructure
 3. **Branch protection**: Server-side enforcement of checks
 4. **Access controls**: Limiting who can push to protected branches
 

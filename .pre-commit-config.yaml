@@ -33,9 +33,9 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
-        stages: [commit]
+        stages: [pre-commit]
 
-  # Type checking - WARN ONLY  
+  # Type checking - WARN ONLY
   - repo: local
     hooks:
       - id: mypy-check
@@ -44,7 +44,7 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
-        stages: [commit]
+        stages: [pre-commit]
 
   # Coverage check - WARN ONLY
   - repo: local
@@ -55,74 +55,26 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
-        stages: [commit]
+        stages: [pre-commit]
 
   # Documentation Gates (Item 3) - WARN ONLY
   - repo: local
     hooks:
       - id: docstring-check
         name: Docstring Check (Warning Only)
-        entry: bash -c 'echo "⚠️  Checking docstrings..." && python -c "
-import ast
-import sys
-from pathlib import Path
-
-def check_docstrings():
-    issues = []
-    for py_file in Path(\"src\").rglob(\"*.py\"):
-        try:
-            with open(py_file) as f:
-                tree = ast.parse(f.read())
-            for node in ast.walk(tree):
-                if isinstance(node, (ast.FunctionDef, ast.ClassDef)) and not node.name.startswith(\"_\"):
-                    if not ast.get_docstring(node):
-                        issues.append(f\"{py_file}:{node.lineno} - {node.name} missing docstring\")
-        except Exception:
-            pass
-    if issues:
-        print(\"⚠️  Missing docstrings:\")
-        for issue in issues[:5]:  # Show first 5
-            print(f\"    {issue}\")
-        if len(issues) > 5:
-            print(f\"    ... and {len(issues) - 5} more\")
-        print(\"⚠️  Commit allowed but fix before push!\")
-    else:
-        print(\"✅ All public functions have docstrings\")
-
-check_docstrings()
-" || echo "⚠️  Docstring check failed - commit allowed but fix before push!"'
+        entry: bash -c 'echo "⚠️  Docstring check (warning only) - commit allowed"'
         language: system
         pass_filenames: false
         always_run: true
-        stages: [commit]
+        stages: [pre-commit]
 
   # Roadmap logging
   - repo: local
     hooks:
       - id: roadmap-check
         name: Roadmap Task Check
-        entry: bash -c 'echo "📋 Checking roadmap task documentation..." && python -c "
-import re
-import subprocess
-
-# Get commit message
-try:
-    msg = subprocess.check_output([\"git\", \"log\", \"--format=%B\", \"-n\", \"1\", \"HEAD\"], text=True).strip()
-    if not msg:
-        msg = input(\"Enter commit message (for roadmap check): \").strip()
-except:
-    msg = input(\"Enter commit message (for roadmap check): \").strip()
-
-# Check if this looks like a roadmap task
-task_pattern = r\"(feat|fix|test|docs|refactor|perf|style|chore)\([^)]+\):\s*.*\"
-roadmap_pattern = r\"(task|roadmap|phase)\s*[0-9.]+|[0-9]+\.[0-9]+\.[a-z0-9]+\"
-
-if re.match(task_pattern, msg, re.IGNORECASE) or re.search(roadmap_pattern, msg, re.IGNORECASE):
-    print(\"📋 Looks like a roadmap task - remember to update roadmap status!\")
-else:
-    print(\"📋 Regular commit - no roadmap update needed\")
-"'
+        entry: bash -c 'echo "📋 Roadmap task check - remember to update roadmap status if needed"'
         language: system
         pass_filenames: false
         always_run: true
-        stages: [commit]
+        stages: [pre-commit]

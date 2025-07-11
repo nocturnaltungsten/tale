@@ -60,7 +60,7 @@ show_help() {
 
 install_hooks() {
     print_section "Installing Git Hooks"
-    
+
     # Install pre-commit (uses .pre-commit-config.yaml)
     if command -v pre-commit >/dev/null 2>&1; then
         print_info "Installing pre-commit hooks..."
@@ -70,7 +70,7 @@ install_hooks() {
         print_error "pre-commit not found. Install with: pip install pre-commit"
         return 1
     fi
-    
+
     # Pre-push hook is already created, just ensure it's executable
     if [[ -f ".git/hooks/pre-push" ]]; then
         chmod +x .git/hooks/pre-push
@@ -79,24 +79,24 @@ install_hooks() {
         print_error "Pre-push hook not found. Expected at .git/hooks/pre-push"
         return 1
     fi
-    
+
     # Install additional security tools if needed
     print_section "Checking Dependencies"
-    
+
     local missing_deps=()
-    
+
     if ! python -m bandit --help >/dev/null 2>&1; then
         missing_deps+=("bandit[toml]")
     fi
-    
+
     if ! python -m pip_audit --help >/dev/null 2>&1; then
         missing_deps+=("pip-audit")
     fi
-    
+
     if ! python -m mypy --help >/dev/null 2>&1; then
         missing_deps+=("mypy")
     fi
-    
+
     if [[ ${#missing_deps[@]} -gt 0 ]]; then
         print_info "Installing missing dependencies: ${missing_deps[*]}"
         python -m pip install "${missing_deps[@]}"
@@ -104,7 +104,7 @@ install_hooks() {
     else
         print_success "All dependencies available"
     fi
-    
+
     print_section "Hook Installation Complete"
     echo "Pre-commit: Quality checks with warnings (allows commit)"
     echo "Pre-push:   Security/architecture gates (blocks push on failure)"
@@ -115,7 +115,7 @@ install_hooks() {
 
 test_hooks() {
     print_section "Testing Git Hooks"
-    
+
     # Test pre-commit hooks
     print_info "Testing pre-commit hooks (without committing)..."
     if command -v pre-commit >/dev/null 2>&1; then
@@ -127,9 +127,9 @@ test_hooks() {
     else
         print_error "pre-commit not installed"
     fi
-    
+
     echo
-    
+
     # Test pre-push hook
     print_info "Testing pre-push hook..."
     if .git/hooks/pre-push; then
@@ -142,7 +142,7 @@ test_hooks() {
 
 show_status() {
     print_section "Git Hooks Status"
-    
+
     # Check pre-commit
     if [[ -f ".git/hooks/pre-commit" ]]; then
         print_success "Pre-commit hook: Installed"
@@ -152,17 +152,17 @@ show_status() {
     else
         print_error "Pre-commit hook: Not installed"
     fi
-    
+
     # Check pre-push
     if [[ -f ".git/hooks/pre-push" && -x ".git/hooks/pre-push" ]]; then
         print_success "Pre-push hook: Installed and executable"
     else
         print_error "Pre-push hook: Not found or not executable"
     fi
-    
+
     # Check dependencies
     print_section "Dependencies Status"
-    
+
     local deps=("bandit" "pip_audit" "mypy" "pytest" "black" "ruff")
     for dep in "${deps[@]}"; do
         if python -m "$dep" --help >/dev/null 2>&1; then
@@ -175,17 +175,17 @@ show_status() {
 
 uninstall_hooks() {
     print_section "Uninstalling Git Hooks"
-    
+
     if command -v pre-commit >/dev/null 2>&1; then
         pre-commit uninstall
         print_success "Pre-commit hooks uninstalled"
     fi
-    
+
     if [[ -f ".git/hooks/pre-push" ]]; then
         rm .git/hooks/pre-push
         print_success "Pre-push hook removed"
     fi
-    
+
     print_success "All hooks uninstalled"
 }
 

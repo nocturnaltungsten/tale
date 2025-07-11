@@ -1,7 +1,6 @@
 """Tests for the base MCP server implementation."""
 
 import asyncio
-from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -10,7 +9,7 @@ from src.mcp.base_server import BaseMCPServer
 
 class MockMCPServer(BaseMCPServer):
     """Concrete test implementation of BaseMCPServer."""
-    
+
     async def start(self) -> None:
         """Start the test server."""
         self._running = True
@@ -230,7 +229,6 @@ class TestBaseMCPServer:
         server = MockMCPServer()
         result = await server.ping()
         assert result == "pong"
-
 
     @pytest.mark.asyncio
     async def test_server_start_stop_mocked(self):

@@ -68,7 +68,7 @@ run_tests() {
     local category="$1"
     shift
     local pytest_args=("$@")
-    
+
     case "$category" in
         unit)
             print_section "Running Unit Tests"

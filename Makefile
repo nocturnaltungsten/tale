@@ -59,7 +59,7 @@ docs-serve: ## Serve documentation locally (when implemented)
 docs-build: ## Build documentation (when implemented)
 	@echo "Documentation building not yet implemented"
 
-# Development utility targets  
+# Development utility targets
 hooks: ## Install and configure git hooks (pre-commit + pre-push)
 	@./scripts/setup-hooks.sh install
 
