@@ -45,6 +45,14 @@ logs/
 *.db
 *.sqlite3
 
+# Coverage and Testing
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Audit Reports
+audit-report.json
+
 # Model files (too large for git)
 *.gguf
 *.safetensors
@@ -62,6 +70,13 @@ architecture.md
 implementation-guide.md
 dev-docs/
 .serena/
+
+# Local-only dev docs
+docs/roadmap-*.md
+docs/implementation-guide.md
+docs/captains-log.md
+docs/quality-audit-*.md
+docs/problems.md
 
 # OS
 .DS_Store
