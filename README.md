@@ -1,6 +1,6 @@
-# tale: Lean Autonomous Agent Architecture
+# tale: token adaptive LLM executor
 
-A lightweight, hierarchical agent system built for autonomous task execution on consumer hardware.
+A hierarchical agent system built for autonomous task execution on consumer hardware.
 
 ## Table of Contents
 
